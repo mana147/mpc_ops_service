@@ -195,7 +195,7 @@ function renderChart(calls) {
 		// Giữ tàu ngoài tuyến lọc trên biểu đồ nhưng làm mờ để thấy bối cảnh.
 		const dim = svc && c.service !== svc;
 		const bad = c.conflicts.length > 0;
-		// Màu khối SVG được khai báo tại đây; chú giải tương ứng nằm trong berth-window.css.
+		// Màu khối SVG được khai báo tại đây; chú giải tương ứng nằm trong public/css/berth-window.css.
 		const fill = bad ? '#F5DED9' : (c.window ? '#DCE6EE' : '#F5E6C8');
 		const line = bad ? '#A63A2C' : (c.window ? '#4E7FA3' : '#B5791E');
 		const txt = bad ? '#7C2A1E' : (c.window ? '#26506E' : '#8C5D14');

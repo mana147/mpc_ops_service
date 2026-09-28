@@ -29,6 +29,11 @@ test('health check hoạt động không cần đăng nhập', async () => {
   assert.equal(response.body.status, 'ok');
 });
 
+test('asset berth window được phục vụ từ public', async () => {
+  await request(app).get('/css/berth-window.css').expect(200).expect('Content-Type', /css/);
+  await request(app).get('/js/berth-window.js').expect(200).expect('Content-Type', /javascript/);
+});
+
 test('API từ chối người dùng chưa đăng nhập', async () => {
   const response = await request(app).get('/api/berth-window').expect(401);
   assert.match(response.body.message, /đăng nhập/i);

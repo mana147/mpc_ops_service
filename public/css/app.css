@@ -20,11 +20,11 @@
 .eyebrow { margin: 0 0 5px; color: var(--app-steel); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
 .login-card h1 { margin: 0; font-size: 24px; }
 .login-intro { margin: 7px 0 24px; color: #6e7b85; font-size: 14px; }
-.login-form { display: grid; gap: 8px; }
-.login-form label { margin-top: 8px; color: #3e4c58; font-size: 13px; font-weight: 600; }
-.login-form input { width: 100%; padding: 10px 11px; border: 1px solid var(--app-rule); border-radius: 2px; font: inherit; }
+.login-form { display: grid; gap: 12px; }
+.login-form label { margin: 8px 0 0; color: #3e4c58; font-size: 13px; font-weight: 600; }
+.login-form input { display: block; box-sizing: border-box; width: 100%; padding: 10px 11px; border: 1px solid var(--app-rule); border-radius: 2px; font: inherit; }
 .login-form input:focus { border-color: var(--app-steel); outline: 2px solid rgba(46, 92, 126, .14); }
-.login-form button { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--app-steel); border-radius: 2px; background: var(--app-steel); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.login-form button { width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--app-steel); border-radius: 2px; background: var(--app-steel); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 .alert { margin: 0 0 14px; padding: 9px 11px; border-left: 3px solid var(--app-alarm); background: #f5ded9; color: #6e2418; font-size: 13px; }
 .error-card { text-align: center; }
 .error-code { margin: 0; color: var(--app-steel); font-family: ui-monospace, monospace; font-size: 42px; font-weight: 600; }

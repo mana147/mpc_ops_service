@@ -64,8 +64,6 @@ function createApp(options = {}) {
     }
   }));
   app.use(express.static(path.join(rootDir, 'public'), { maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0 }));
-  app.get('/assets/berth-window.css', (req, res) => res.sendFile(path.join(rootDir, 'berth-window.css')));
-  app.get('/assets/berth-window.js', (req, res) => res.sendFile(path.join(rootDir, 'berth-window.js')));
 
   app.get('/', (req, res) => res.redirect(req.session.user ? '/admin/berth-window' : '/login'));
   app.get('/health', (req, res) => res.json({ status: 'ok' }));

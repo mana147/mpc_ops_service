@@ -46,7 +46,7 @@ src/
 └── server.js      # HTTP entrypoint
 ```
 
-Các asset `berth-window.css` và `berth-window.js` ở thư mục gốc là phần tool ban đầu đã được nối vào trang `/admin/berth-window`.
+Các asset của tool nằm tại `public/css/berth-window.css` và `public/js/berth-window.js`; giao diện EJS tương ứng nằm tại `src/views/admin/berth-window.ejs`.
 
 ## API nội bộ
 
