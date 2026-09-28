@@ -28,7 +28,7 @@ function createAuthController({ userModel }) {
         req.session.user = { id: user.id, username: user.username, role: user.role };
         return req.session.save(saveError => {
           if (saveError) return next(saveError);
-          return res.redirect('/admin/berth-window');
+          return res.redirect('/admin');
         });
       });
     },

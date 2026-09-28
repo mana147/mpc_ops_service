@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · MPC Ops</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="admin-page">
+  <div class="admin-shell">
+    <%- include('../partials/admin-sidebar', { activePage }) %>
+
+    <div class="admin-workspace">
+      <%- include('../partials/admin-topbar', {
+        pageTitle: 'Dashboard',
+        eyebrow: 'TRUNG TÂM ĐIỀU HÀNH',
+        weekNavigation: false,
+        user
+      }) %>
+
+      <main class="admin-content">
+        <section class="dashboard-intro">
+          <div>
+            <p class="section-kicker">Xin chào, <%= user.username %></p>
+            <h2>Chọn công cụ vận hành</h2>
+            <p>Các module nghiệp vụ được quản lý tập trung tại đây. Mỗi tool có route, controller và dữ liệu riêng.</p>
+          </div>
+          <div class="tool-count"><strong><%= tools.length %></strong><span>Công cụ khả dụng</span></div>
+        </section>
+
+        <section aria-labelledby="tools-title">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">MODULES</p>
+              <h2 id="tools-title">Công cụ khai thác</h2>
+            </div>
+          </div>
+
+          <div class="tool-grid">
+            <% tools.forEach(tool => { %>
+              <a class="tool-card" href="<%= tool.href %>">
+                <span class="tool-card-icon" aria-hidden="true"><%= tool.shortName %></span>
+                <span class="tool-card-content">
+                  <span class="tool-card-category"><%= tool.category %></span>
+                  <strong><%= tool.name %></strong>
+                  <span class="tool-card-description"><%= tool.description %></span>
+                  <span class="tool-card-meta"><%= tool.meta %></span>
+                </span>
+                <span class="tool-card-arrow" aria-hidden="true">→</span>
+              </a>
+            <% }) %>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -5,7 +5,9 @@
 ## Chức năng
 
 - Đăng nhập/đăng xuất admin bằng session lưu trong SQLite.
+- Dashboard trung tâm tại `/admin` để mở và mở rộng các tool nghiệp vụ.
 - Xem biểu đồ không gian–thời gian theo tuần.
+- Chế độ Berth Window toàn màn hình, tự tối ưu cho điện thoại dọc và xoay ngang.
 - Lọc tuyến, bật/tắt cửa sổ hợp đồng và khung thủy triều.
 - Tự phát hiện xung đột thời gian/vị trí và tính KPI.
 - Sửa JSON, kiểm tra dữ liệu ở backend và lưu vào SQLite.
@@ -46,7 +48,9 @@ src/
 └── server.js      # HTTP entrypoint
 ```
 
-Các asset của tool nằm tại `public/css/berth-window.css` và `public/js/berth-window.js`; giao diện EJS tương ứng nằm tại `src/views/admin/berth-window.ejs`.
+Dashboard dùng chung sidebar/topbar trong `src/views/partials`. Danh mục tool được khai báo tại `src/config/adminTools.js`, giúp bổ sung module mới mà không phải sửa trực tiếp giao diện dashboard.
+
+Các asset của Berth Window nằm tại `public/css/berth-window.css` và `public/js/berth-window.js`; giao diện EJS tương ứng nằm tại `src/views/admin/berth-window.ejs`.
 
 ## API nội bộ
 

@@ -1,0 +1,27 @@
+<aside class="admin-sidebar">
+  <a class="admin-brand" href="/admin" aria-label="MPC Ops Dashboard">
+    <span class="admin-brand-mark">MPC</span>
+    <span>
+      <strong>OPS SERVICE</strong>
+      <small>Administration</small>
+    </span>
+  </a>
+
+  <nav class="admin-nav" aria-label="Điều hướng quản trị">
+    <span class="admin-nav-label">Tổng quan</span>
+    <a class="admin-nav-link <%= activePage === 'dashboard' ? 'active' : '' %>" href="/admin">
+      <span class="admin-nav-icon" aria-hidden="true">01</span>
+      Dashboard
+    </a>
+
+    <span class="admin-nav-label">Công cụ</span>
+    <% navigationTools.forEach(tool => { %>
+      <a class="admin-nav-link <%= activePage === tool.id ? 'active' : '' %>" href="<%= tool.href %>">
+        <span class="admin-nav-icon" aria-hidden="true"><%= tool.shortName %></span>
+        <%= tool.name %>
+      </a>
+    <% }) %>
+  </nav>
+
+  <div class="admin-sidebar-foot">MPC Ops · Internal</div>
+</aside>

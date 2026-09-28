@@ -54,7 +54,16 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
     .type('form')
     .send({ username: 'admin', password: 'Test@123' })
     .expect(302)
-    .expect('Location', '/admin/berth-window');
+    .expect('Location', '/admin');
+
+  const dashboard = await agent.get('/admin').expect(200);
+  assert.match(dashboard.text, /Chọn công cụ vận hành/);
+  assert.match(dashboard.text, /href="\/admin\/berth-window"/);
+
+  const berthWindowPage = await agent.get('/admin/berth-window').expect(200);
+  assert.match(berthWindowPage.text, /Dashboard/);
+  assert.match(berthWindowPage.text, /Biểu đồ không gian - thời gian/);
+  assert.match(berthWindowPage.text, /id="fullscreenToggle"/);
 
   const initial = await agent.get('/api/berth-window').expect(200);
   assert.equal(initial.body.data.calls.length, 12);

@@ -3,19 +3,19 @@ const QUAY_LEN = 900;
 // Khoảng cách an toàn tối thiểu giữa hai tàu (m).
 const SAFETY_GAP = 25;
 // Tỷ lệ trục ngang: pixel cho một giờ.
-const HOUR_PX = 9;
+let HOUR_PX = 9;
 // Tỷ lệ trục dọc: pixel cho một mét cầu bến.
-const M_PX = 0.45;
+let M_PX = 0.45;
 // Chiều cao vùng nhãn ngày/giờ của SVG (pixel).
 const HEAD_H = 46;
 // Khoảng đệm dưới cùng của SVG (pixel).
 const PAD_B = 16;
 // Chiều rộng biểu đồ của 7 ngày x 24 giờ.
-const CHART_W = 168 * HOUR_PX;
+let CHART_W = 168 * HOUR_PX;
 // Chiều cao vùng cầu bến sau khi đổi mét sang pixel.
-const QUAY_H = QUAY_LEN * M_PX;
+let QUAY_H = QUAY_LEN * M_PX;
 // Tổng chiều cao SVG: nhãn + cầu bến + đệm.
-const SVG_H = HEAD_H + QUAY_H + PAD_B;
+let SVG_H = HEAD_H + QUAY_H + PAD_B;
 // Chỉ số day trong JSON: 0 là Thứ 2, 6 là Chủ nhật.
 const DAYS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
@@ -86,6 +86,17 @@ function baseMonday() {
 function dateOf(dayIdx) { const d = baseMonday(); d.setDate(d.getDate() + dayIdx); return d; }
 // Định dạng ngày/tháng trên thanh chuyển tuần và trục thời gian.
 const dm = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+
+/** Điều chỉnh tỷ lệ biểu đồ cho desktop, điện thoại dọc và điện thoại xoay ngang. */
+function updateResponsiveScale() {
+	const compactLandscape = window.matchMedia('(orientation: landscape) and (max-height: 560px)').matches;
+	const mobile = window.matchMedia('(max-width: 720px)').matches;
+	HOUR_PX = compactLandscape ? 7 : (mobile ? 8 : 9);
+	M_PX = compactLandscape ? 0.28 : (mobile ? 0.36 : 0.45);
+	CHART_W = 168 * HOUR_PX;
+	QUAY_H = QUAY_LEN * M_PX;
+	SVG_H = HEAD_H + QUAY_H + PAD_B;
+}
 
 /** Thêm thời gian, trạng thái và danh sách xung đột vào bản sao mỗi lượt tàu. */
 function enrich() {
@@ -283,6 +294,7 @@ function select(id) { selected = selected === id ? null : id; draw(); }
 
 /** Tính dữ liệu và cập nhật mọi vùng hiển thị sau mỗi thay đổi. */
 function draw() {
+	updateResponsiveScale();
 	const calls = enrich();
 	// Tạo lại danh sách tuyến từ dữ liệu mới nhưng giữ lựa chọn hiện tại nếu còn hợp lệ.
 	const svcs = [...new Set(data.calls.map(c => c.service).filter(Boolean))].sort();
@@ -304,6 +316,62 @@ $('#nextw').onclick = () => { weekOffset++; draw(); };
 
 // Vẽ lại khi thay checkbox hoặc bộ lọc tuyến.
 ['showWindow', 'showTide', 'filterSvc'].forEach(id => $('#' + id).addEventListener('change', draw));
+
+/** Bật chế độ chỉ hiển thị tool; Fullscreen API là tăng cường tùy trình duyệt. */
+const fullscreenToggle = $('#fullscreenToggle');
+const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+const requestNativeFullscreen = document.documentElement.requestFullscreen
+	? () => document.documentElement.requestFullscreen()
+	: (document.documentElement.webkitRequestFullscreen ? () => document.documentElement.webkitRequestFullscreen() : null);
+const exitNativeFullscreen = document.exitFullscreen
+	? () => document.exitFullscreen()
+	: (document.webkitExitFullscreen ? () => document.webkitExitFullscreen() : null);
+
+function setFocusMode(enabled) {
+	document.body.classList.toggle('berth-focus-mode', enabled);
+	fullscreenToggle.setAttribute('aria-pressed', String(enabled));
+	fullscreenToggle.setAttribute('aria-label', enabled ? 'Thoát chế độ toàn màn hình' : 'Mở Berth Window toàn màn hình');
+	fullscreenToggle.title = enabled ? 'Thoát toàn màn hình' : 'Mở toàn màn hình';
+	draw();
+}
+
+fullscreenToggle.addEventListener('click', async () => {
+	const enabled = document.body.classList.contains('berth-focus-mode');
+	if (enabled) {
+		setFocusMode(false);
+		if (fullscreenElement() && exitNativeFullscreen) {
+			try { await exitNativeFullscreen(); } catch (_) { /* CSS focus mode đã được tắt. */ }
+		}
+		return;
+	}
+
+	setFocusMode(true);
+	if (requestNativeFullscreen) {
+		try { await requestNativeFullscreen(); } catch (_) { /* Safari/iOS vẫn dùng CSS focus mode. */ }
+	}
+});
+
+function syncFullscreenExit() {
+	if (!fullscreenElement() && document.body.classList.contains('berth-focus-mode')) setFocusMode(false);
+}
+
+document.addEventListener('fullscreenchange', syncFullscreenExit);
+document.addEventListener('webkitfullscreenchange', syncFullscreenExit);
+document.addEventListener('keydown', event => {
+	if (event.key === 'Escape' && !fullscreenElement() && document.body.classList.contains('berth-focus-mode')) {
+		setFocusMode(false);
+	}
+});
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+	clearTimeout(resizeTimer);
+	resizeTimer = setTimeout(() => {
+		const hoursFromWeekStart = $('#scroller').scrollLeft / HOUR_PX;
+		draw();
+		$('#scroller').scrollLeft = hoursFromWeekStart * HOUR_PX;
+	}, 120);
+});
 
 // Mở bảng JSON và điền dữ liệu đang được hiển thị.
 $('#toggleIO').onclick = () => {

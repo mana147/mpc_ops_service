@@ -6,6 +6,7 @@ const { requireAuth } = require('../middleware/auth');
 function createAdminRoutes(controller) {
   const router = express.Router();
   router.use(requireAuth);
+  router.get('/', controller.showDashboard);
   router.get('/berth-window', controller.showBerthWindow);
   return router;
 }

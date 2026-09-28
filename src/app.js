@@ -65,7 +65,7 @@ function createApp(options = {}) {
   }));
   app.use(express.static(path.join(rootDir, 'public'), { maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0 }));
 
-  app.get('/', (req, res) => res.redirect(req.session.user ? '/admin/berth-window' : '/login'));
+  app.get('/', (req, res) => res.redirect(req.session.user ? '/admin' : '/login'));
   app.get('/health', (req, res) => res.json({ status: 'ok' }));
   app.use(createAuthRoutes(authController));
   app.use('/admin', createAdminRoutes(adminController));

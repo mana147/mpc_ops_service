@@ -7,27 +7,37 @@
   <link rel="stylesheet" href="/css/berth-window.css">
   <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
-  <header class="topbar">
-    <div>
-      <div class="topbar-title-row">
-        <span class="app-badge">MPC OPS</span>
-        <h1>Bảng cửa sổ cầu bến</h1>
-      </div>
-      <div class="sub">Cầu bến liên tục 0–900 m · 3 phân đoạn · khoảng an toàn 25 m</div>
-    </div>
-    <div class="weeknav">
-      <button id="prevw" aria-label="Tuần trước">←</button>
-      <span class="range tnum" id="range"></span>
-      <button id="nextw" aria-label="Tuần sau">→</button>
-    </div>
-    <div class="admin-menu">
-      <span><%= user.username %></span>
-      <form method="post" action="/logout"><button type="submit">Đăng xuất</button></form>
-    </div>
-  </header>
+<body class="admin-page">
+  <div class="admin-shell">
+    <%- include('../partials/admin-sidebar', { activePage }) %>
 
-  <main class="wrap">
+    <div class="admin-workspace">
+      <%- include('../partials/admin-topbar', {
+        pageTitle: 'Berth Window',
+        eyebrow: 'CÔNG CỤ KHAI THÁC',
+        weekNavigation: true,
+        user
+      }) %>
+
+      <main class="admin-content admin-content-wide">
+        <div class="tool-context">
+          <div class="tool-breadcrumb">
+            <a href="/admin">Dashboard</a><span>/</span><strong>Berth Window</strong>
+          </div>
+          <div class="tool-context-actions">
+            <p>Cầu bến liên tục 0–900 m · 3 phân đoạn · khoảng an toàn 25 m</p>
+            <button class="fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="Mở Berth Window toàn màn hình" aria-pressed="false" title="Mở toàn màn hình">
+              <svg class="fullscreen-icon fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
+              </svg>
+              <svg class="fullscreen-icon fullscreen-icon-exit" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 8h5V3M21 8h-5V3M3 16h5v5M21 16h-5v5" />
+              </svg>
+              <span class="fullscreen-label">Toàn màn hình</span>
+            </button>
+          </div>
+        </div>
+        <div class="wrap tool-wrap">
     <div class="panel">
       <div class="panel-head">
         <h2>Biểu đồ không gian - thời gian</h2>
@@ -77,7 +87,10 @@
       </div>
       <div class="panel detail" id="detail"><div class="empty">Chưa chọn lượt tàu nào.</div></div>
     </div>
-  </main>
+        </div>
+      </main>
+    </div>
+  </div>
 
   <script src="/js/berth-window.js" defer></script>
 </body>

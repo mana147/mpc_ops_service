@@ -9,7 +9,7 @@ function requireAuth(req, res, next) {
 }
 
 function redirectIfAuthenticated(req, res, next) {
-  if (req.session && req.session.user) return res.redirect('/admin/berth-window');
+  if (req.session && req.session.user) return res.redirect('/admin');
   return next();
 }
 

@@ -1,0 +1,22 @@
+<header class="admin-topbar">
+  <div class="admin-page-title">
+    <span><%= eyebrow || 'MPC OPS' %></span>
+    <h1><%= pageTitle %></h1>
+  </div>
+
+  <% if (weekNavigation) { %>
+    <div class="weeknav admin-weeknav">
+      <button id="prevw" type="button" aria-label="Tuần trước">←</button>
+      <span class="range tnum" id="range"></span>
+      <button id="nextw" type="button" aria-label="Tuần sau">→</button>
+    </div>
+  <% } %>
+
+  <div class="admin-user-menu">
+    <span class="admin-avatar" aria-hidden="true"><%= user.username.slice(0, 1).toUpperCase() %></span>
+    <span class="admin-user-name"><%= user.username %></span>
+    <form method="post" action="/logout">
+      <button type="submit">Đăng xuất</button>
+    </form>
+  </div>
+</header>
