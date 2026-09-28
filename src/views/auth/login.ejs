@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · MPC Ops</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="auth-page">
+  <main class="login-card">
+    <div class="brand-mark" aria-hidden="true">MPC</div>
+    <p class="eyebrow">MPC OPS SERVICE</p>
+    <h1>Đăng nhập quản trị</h1>
+    <p class="login-intro">Truy cập công cụ lập kế hoạch cửa sổ cầu bến.</p>
+
+    <% if (error) { %>
+      <div class="alert" role="alert"><%= error %></div>
+    <% } %>
+
+    <form method="post" action="/login" class="login-form">
+      <label for="username">Tên đăng nhập</label>
+      <input id="username" name="username" type="text" value="<%= username %>" autocomplete="username" required autofocus>
+
+      <label for="password">Mật khẩu</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <button type="submit">Đăng nhập</button>
+    </form>
+  </main>
+</body>
+</html>

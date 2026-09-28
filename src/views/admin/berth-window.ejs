@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · MPC Ops</title>
+  <link rel="stylesheet" href="/assets/berth-window.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="topbar-title-row">
+        <span class="app-badge">MPC OPS</span>
+        <h1>Bảng cửa sổ cầu bến</h1>
+      </div>
+      <div class="sub">Cầu bến liên tục 0–900 m · 3 phân đoạn · khoảng an toàn 25 m</div>
+    </div>
+    <div class="weeknav">
+      <button id="prevw" aria-label="Tuần trước">←</button>
+      <span class="range tnum" id="range"></span>
+      <button id="nextw" aria-label="Tuần sau">→</button>
+    </div>
+    <div class="admin-menu">
+      <span><%= user.username %></span>
+      <form method="post" action="/logout"><button type="submit">Đăng xuất</button></form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Biểu đồ không gian - thời gian</h2>
+        <div class="tools">
+          <label class="chk"><input type="checkbox" id="showWindow" checked> Cửa sổ hợp đồng</label>
+          <label class="chk"><input type="checkbox" id="showTide" checked> Khung thủy triều</label>
+          <label class="chk">Tuyến
+            <select id="filterSvc"><option value="">Tất cả</option></select>
+          </label>
+          <button class="btn" id="toggleIO">Dữ liệu JSON</button>
+        </div>
+      </div>
+      <div class="chartrow">
+        <div class="axis"><svg id="axisSvg" role="img" aria-label="Trục chiều dài cầu bến"></svg></div>
+        <div class="scroller" id="scroller"><svg id="chartSvg" role="img" aria-label="Biểu đồ cửa sổ cầu bến theo thời gian"></svg></div>
+      </div>
+      <div class="legend">
+        <span><i class="sw sw-window"></i> Lượt tàu theo cửa sổ</span>
+        <span><i class="sw sw-adhoc"></i> Tàu vãng lai</span>
+        <span><i class="sw sw-conflict"></i> Xung đột vị trí</span>
+        <span><i class="sw sw-commitment"></i> Cửa sổ cam kết</span>
+        <span><i class="sw sw-tide"></i> Khung triều cho tàu mớn sâu</span>
+      </div>
+      <div class="io hidden" id="ioPanel">
+        <textarea id="jsonBox" spellcheck="false" aria-label="Dữ liệu JSON"></textarea>
+        <div class="io-actions">
+          <button class="btn btn-primary" id="applyJson">Lưu dữ liệu</button>
+          <button class="btn" id="resetJson">Khôi phục mẫu</button>
+          <button class="btn" id="copyJson">Sao chép</button>
+        </div>
+        <div class="msg" id="ioMsg">Sửa trực tiếp rồi bấm Lưu dữ liệu. Thời gian tính theo day (0 = Thứ 2) và hour thập phân.</div>
+      </div>
+    </div>
+
+    <div class="panel kpis" id="kpis"></div>
+
+    <div class="split content-split">
+      <div class="panel">
+        <div class="panel-head"><h2>Danh sách lượt tàu</h2></div>
+        <div class="tablewrap"><table id="callTable">
+          <thead><tr>
+            <th>Tàu</th><th>Tuyến</th><th>Vị trí (m)</th><th>Cửa sổ</th><th>Cập thực tế</th><th>Lệch</th><th>Trạng thái</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <div class="note">Bấm vào một dòng để xem chi tiết và làm nổi bật trên biểu đồ.</div>
+      </div>
+      <div class="panel detail" id="detail"><div class="empty">Chưa chọn lượt tàu nào.</div></div>
+    </div>
+  </main>
+
+  <script src="/assets/berth-window.js" defer></script>
+</body>
+</html>
