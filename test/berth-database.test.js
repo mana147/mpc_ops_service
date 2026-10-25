@@ -9,7 +9,7 @@ const { spawnSync } = require('node:child_process');
 const Database = require('better-sqlite3');
 const { migrateDatabase } = require('../src/database/migrate');
 const { importLegacyBerthData, weekBounds } = require('../src/services/importLegacyBerthData');
-const seed = require('../src/data/seedBerthData');
+const seed = require('./fixtures/legacyBerthData.json');
 
 function fixture(t, { migrate = true, data = seed } = {}) {
   const db = new Database(':memory:');
@@ -83,14 +83,14 @@ test('import idempotent; nguồn thay đổi hoặc tuần khác không ghi đè
   assert.equal(db.prepare('SELECT name FROM terminals').get().name, seed.terminal);
 });
 
-test('lỗi allocation cuối import rollback cả schema và dữ liệu trong transaction ngoài', t => {
+test('snapshot ngoài tuyến bị từ chối và rollback cả schema trong transaction ngoài', t => {
   const data = structuredClone(seed);
-  data.berths[2].to = 850; // C4 vượt giới hạn; lỗi sau khi đã insert nhiều bảng.
+  data.berths[2].to = 850; // C4 vượt giới hạn tuyến suy ra từ snapshot.
   const db = fixture(t, { migrate: false, data });
   assert.throws(() => db.transaction(() => {
     migrateDatabase(db);
     importLegacyBerthData(db, { weekStart: '2026-10-19' });
-  })(), /exceeds quay length/);
+  })(), /calls\[3\].to/);
   assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE name = 'terminals'").get().n, 0);
   assert.equal(db.prepare("SELECT count(*) AS n FROM sqlite_schema WHERE name = 'schema_migrations'").get().n, 0);
   assert.deepEqual(JSON.parse(db.prepare('SELECT json_data FROM berth_window_datasets').get().json_data), data);
@@ -180,9 +180,21 @@ test('CLI tạo file SQLite, backup khi chạy lại và không tạo file cho n
     try {
       assert.equal(db.pragma('integrity_check', { simple: true }), 'ok');
       assert.deepEqual(db.pragma('foreign_key_check'), []);
-      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM berth_plan_items').get().n, 12);
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM berth_plan_items').get().n, 0);
     } finally {
       db.close();
     }
   }
+});
+
+test('import cấu hình mới giữ chiều dài toàn tuyến, khoảng an toàn và archive DWT', t => {
+  const data = structuredClone(require('../src/data/seedBerthData'));
+  data.quay.safetyGap = 30;
+  data.berths = [{ code: 'V1', from: 0, to: 120 }];
+  data.vessels = [{ id: 'V1', name: 'Tàu danh mục chưa có lượt', loa: 120, dwt: 10000 }];
+  const db = fixture(t, { data });
+  importLegacyBerthData(db, { weekStart: '2026-10-19' });
+  assert.equal(db.prepare('SELECT length_m FROM quays').get().length_m, 380);
+  assert.equal(db.prepare('SELECT safety_gap_m FROM berth_plans').get().safety_gap_m, 30);
+  assert.deepEqual(JSON.parse(db.prepare('SELECT source_json FROM berth_legacy_imports').get().source_json), data);
 });

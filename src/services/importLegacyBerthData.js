@@ -47,7 +47,7 @@ function importLegacyBerthData(db, { weekStart }) {
     const insert = (sql, values) => Number(db.prepare(sql).run(...values).lastInsertRowid);
 
     const terminalId = insert(`INSERT INTO terminals (code, name) VALUES (?, ?)`, ['LEGACY-T1', data.terminal]);
-    const quayLength = Math.max(...data.berths.map(berth => berth.to));
+    const quayLength = data.quay?.length ?? Math.max(...data.berths.map(berth => berth.to));
     const quayId = insert(`INSERT INTO quays (terminal_id, code, name, length_m) VALUES (?, ?, ?, ?)`,
       [terminalId, 'Q1', 'Tuyến cầu import từ JSON', quayLength]);
     for (const berth of data.berths) {
@@ -60,8 +60,8 @@ function importLegacyBerthData(db, { weekStart }) {
           'Khung hiển thị từ JSON; chưa xác nhận độ sâu hoặc điều kiện hàng hải.']);
     }
     const planId = insert(`INSERT INTO berth_plans
-      (terminal_id, week_start, version, safety_gap_m, change_reason, created_by) VALUES (?, ?, 1, 25, ?, ?)`,
-      [terminalId, weekStart, 'Import JSON legacy; cần rà soát nghiệp vụ trước khi publish.', source.updated_by]);
+      (terminal_id, week_start, version, safety_gap_m, change_reason, created_by) VALUES (?, ?, 1, ?, ?, ?)`,
+      [terminalId, weekStart, data.quay?.safetyGap ?? 25, 'Import JSON legacy; cần rà soát nghiệp vụ trước khi publish.', source.updated_by]);
 
     // Chỉ gom các bản ghi giống hệt trong snapshot này; tên tàu không phải định danh toàn cục.
     const vessels = new Map();

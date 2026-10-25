@@ -22,7 +22,7 @@ function createBerthWindowApiController({ berthWindowModel }) {
     reset(req, res) {
       const data = structuredClone(seedBerthData);
       const record = berthWindowModel.update(data, req.session.user.id);
-      res.json({ message: 'Đã khôi phục dữ liệu mẫu.', ...record });
+      res.json({ message: 'Đã khởi tạo lại cấu hình cảng; danh mục và lịch tàu trống.', ...record });
     }
   };
 }

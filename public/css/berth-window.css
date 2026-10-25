@@ -295,6 +295,10 @@ text {
   margin-top: 16px
 }
 
+.content-split > .panel {
+  min-width: 0
+}
+
 @media (max-width:1000px) {
   .split {
     grid-template-columns: 1fr
@@ -586,3 +590,37 @@ dd {
     max-height: 270px
   }
 }
+/* Form cấu hình chỉ thuộc trang Berth Window. */
+.input-panel { margin-bottom: 16px; }
+.input-panel details { border-top: 1px solid var(--rule2); }
+.input-panel summary { padding: 12px 16px; cursor: pointer; font-weight: 600; }
+.data-form { padding: 0 16px 16px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 12px; }
+.fields label { display: grid; gap: 4px; color: var(--ink2); font-size: 13px; }
+.data-form input, .data-form select { width: 100%; min-width: 0; padding: 7px; font: inherit; border: 1px solid var(--rule); border-radius: 2px; }
+.data-form output { padding: 7px; }
+.data-form p, #inputMsg { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+#inputMsg.err, #callPreview.err { color: var(--alarm); }
+.section-code { max-width: 120px; }
+.section-number { max-width: 110px; }
+.input-panel [inert] { opacity: .6; }
+.input-panel button:disabled { opacity: .6; cursor: wait; }
+@media (max-width:720px) { .fields { grid-template-columns: 1fr; } .data-form { padding: 0 10px 12px; } }
+
+#callListPanel > .panel-head { justify-content: space-between; }
+#callListMsg:empty { display: none; }
+#callListMsg { padding: 8px 16px 0; margin: 0; }
+#callListMsg.err, #callFormMsg.err { color: var(--alarm); }
+.call-actions { white-space: nowrap; position: sticky; right: 0; background: var(--surface); box-shadow: -1px 0 var(--rule2); }
+.call-actions .btn { padding: 3px 6px; font-size: 12px; }
+#callTable th:last-child { right: 0; z-index: 2; }
+#callTable tr.sel .call-actions { background: var(--steel-soft); }
+#callTable tr:hover .call-actions { background: #F5F7F4; }
+.btn-danger { color: var(--alarm); }
+.btn-danger:hover { color: var(--alarm); border-color: var(--alarm); }
+.call-dialog { width: min(860px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--rule); border-radius: 3px; color: var(--ink); background: var(--surface); overflow: auto; }
+.call-dialog::backdrop { background: rgba(22, 33, 43, .45); }
+.call-dialog .panel-head { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.call-dialog .data-form { padding-top: 16px; }
+.call-dialog .io-actions { justify-content: flex-end; }
+.call-dialog .msg { font-size: 13px; }

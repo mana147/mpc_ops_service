@@ -25,7 +25,7 @@
             <a href="/admin">Dashboard</a><span>/</span><strong>Berth Window</strong>
           </div>
           <div class="tool-context-actions">
-            <p>Cầu bến liên tục 0–900 m · 3 phân đoạn · khoảng an toàn 25 m</p>
+            <p id="quaySummary">Đang tải cấu hình cầu bến…</p>
             <button class="fullscreen-toggle" id="fullscreenToggle" type="button" aria-label="Mở Berth Window toàn màn hình" aria-pressed="false" title="Mở toàn màn hình">
               <svg class="fullscreen-icon fullscreen-icon-enter" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5" />
@@ -38,6 +38,7 @@
           </div>
         </div>
         <div class="wrap tool-wrap">
+          <%- include('../partials/berth-inputs') %>
     <div class="panel">
       <div class="panel-head">
         <h2>Biểu đồ không gian - thời gian</h2>
@@ -65,7 +66,7 @@
         <textarea id="jsonBox" spellcheck="false" aria-label="Dữ liệu JSON"></textarea>
         <div class="io-actions">
           <button class="btn btn-primary" id="applyJson">Lưu dữ liệu</button>
-          <button class="btn" id="resetJson">Khôi phục mẫu</button>
+          <button class="btn" id="resetJson">Khởi tạo lại</button>
           <button class="btn" id="copyJson">Sao chép</button>
         </div>
         <div class="msg" id="ioMsg">Sửa trực tiếp rồi bấm Lưu dữ liệu. Thời gian tính theo day (0 = Thứ 2) và hour thập phân.</div>
@@ -75,11 +76,12 @@
     <div class="panel kpis" id="kpis"></div>
 
     <div class="split content-split">
-      <div class="panel">
-        <div class="panel-head"><h2>Danh sách lượt tàu</h2></div>
+      <div class="panel" id="callListPanel">
+        <div class="panel-head"><h2>Danh sách lượt tàu</h2><button type="button" class="btn btn-primary" id="addCall" disabled>Thêm lượt tàu</button></div>
+        <p id="callListMsg" class="note" role="status" aria-live="polite"></p>
         <div class="tablewrap"><table id="callTable">
           <thead><tr>
-            <th>Tàu</th><th>Tuyến</th><th>Vị trí (m)</th><th>Cửa sổ</th><th>Cập thực tế</th><th>Lệch</th><th>Trạng thái</th>
+            <th>Tàu</th><th>Tuyến</th><th>Vị trí (m)</th><th>Cửa sổ</th><th>Bắt đầu kế hoạch</th><th>Lệch</th><th>Trạng thái</th><th>Thao tác</th>
           </tr></thead>
           <tbody></tbody>
         </table></div>
@@ -92,6 +94,9 @@
     </div>
   </div>
 
+  <%- include('../partials/berth-call-dialog') %>
+
+  <script src="/js/berth-domain.js" defer></script>
   <script src="/js/berth-window.js" defer></script>
 </body>
 </html>

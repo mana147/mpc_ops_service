@@ -12,14 +12,15 @@ Trạng thái hiện tại:
 - Berth Window đọc/ghi một JSON snapshot trong SQLite qua API có bảo vệ đăng nhập.
 - Đã có schema SQLite chuẩn hóa 11 bảng và CLI `npm run db:migrate` để import snapshot thành kế hoạch nháp theo tuần. API hiện tại chưa chuyển sang các bảng mới; xem mục 13.
 - Frontend tự tính xung đột, KPI và vẽ SVG; backend hiện chỉ validate cấu trúc trước khi lưu.
+- Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Dữ liệu khởi tạo là tuyến 380 m, 02 cầu thực tế, một đoạn ảo V1; danh mục và lịch trống.
 - Có chế độ toàn màn hình chỉ hiển thị tool, cùng layout riêng cho điện thoại dọc/ngang.
 - Test tích hợp dùng `node:test` + Supertest + SQLite in-memory.
 
 Các quyết định quan trọng không được bỏ qua:
 
 1. API hiện tại vẫn đọc/ghi **một row duy nhất** (`id = 1`) trong `berth_window_datasets`. Các bảng vessel/call/window/plan mới được tạo bằng CLI migration riêng và chưa tự đồng bộ với JSON.
-2. Giới hạn cầu bến `900 m` đang xuất hiện ở cả `public/js/berth-window.js` và `src/services/berthDataValidator.js`. Nếu đổi chiều dài cầu, phải cập nhật đồng bộ.
-3. Dữ liệu mẫu có hai bản: bản chính ở `src/data/seedBerthData.js` và bản fallback trình duyệt trong `public/js/berth-window.js`. Khi đổi schema hoặc sample data, phải cập nhật cả hai.
+2. Chiều dài tuyến lấy từ `quay.length`; đoạn cầu ảo và vị trí tàu phải nằm trong phạm vi đó. Snapshot cũ thiếu `quay` được suy ra chiều dài từ `berths`, không tự chuyển hoặc ghi đè dữ liệu cũ.
+3. Dữ liệu khởi tạo chỉ có ở `src/data/seedBerthData.js`; frontend chờ API, không dùng dữ liệu mẫu dự phòng. `public/js/berth-domain.js` chia sẻ cách đọc cấu hình và cảnh báo năng lực giữa Node/trình duyệt.
 4. CSS của trang Berth Window được load theo thứ tự `berth-window.css` rồi `app.css`; `app.css` cố ý override phần admin shell và focus mode.
 5. Không đưa style của Berth Window vào dashboard/admin toàn cục. Dashboard chỉ dùng `public/css/app.css`.
 
@@ -68,6 +69,7 @@ SQLite session + redirect /admin
 │   │   ├── app.css                 # Login, dashboard, admin shell, fullscreen/focus mode
 │   │   └── berth-window.css        # Thành phần riêng của tool và responsive mobile
 │   └── js/
+│       ├── berth-domain.js         # Cấu hình tương thích snapshot cũ và cảnh báo năng lực
 │       └── berth-window.js         # Render SVG, KPI, conflict, JSON editor, fullscreen
 ├── src/
 │   ├── config/
@@ -149,9 +151,17 @@ Payload tối thiểu:
 
 ```json
 {
-  "terminal": "Cầu bến container số 2",
+  "terminal": "Tuyến cầu cảng",
+  "quay": {
+    "length": 380, "physicalBerthCount": 2,
+    "depth": -9.5, "depthDatum": "",
+    "turningBasin": 365, "turningBasinMeasurement": "unconfirmed",
+    "maxLoa": 225, "maxDwt": 40000, "safetyGap": 25,
+    "capacitySource": "Thông tin website cảng do người dùng cung cấp"
+  },
+  "vessels": [],
   "berths": [
-    { "code": "B1", "from": 0, "to": 300 }
+    { "code": "V1", "from": 0, "to": 380 }
   ],
   "tideWindows": [
     { "day": 0, "from": 2.5, "to": 7 }
@@ -159,16 +169,16 @@ Payload tối thiểu:
   "calls": [
     {
       "id": "C1",
-      "vessel": "MSC ANNA",
+      "vessel": "TÀU VÍ DỤ",
       "service": "CIX",
       "line": "Ocean Line",
       "window": { "day": 0, "hour": 8, "dur": 22 },
       "ata": { "day": 0, "hour": 7.7 },
       "dur": 22,
       "from": 0,
-      "to": 350,
-      "loa": 294,
-      "draft": 11,
+      "to": 225,
+      "loa": 225,
+      "draft": 8,
       "cranes": 3,
       "moves": 1450,
       "tol": 3
@@ -185,11 +195,11 @@ Quy ước thời gian:
 - `ata` trong tool hiện đóng vai trò thời điểm bắt đầu khối tàu trên biểu đồ.
 - `dur`: số giờ chiếm cầu; lượt tàu có thể kết thúc sang ngày kế tiếp.
 
-Validator backend kiểm tra kiểu dữ liệu, khoảng ngày/giờ, ID call không trùng, `from < to`, cẩu là số nguyên dương và mọi vị trí nằm trong `0–900 m`. Nó chưa kiểm tra xung đột nghiệp vụ, thủy triều, LOA hoặc năng lực cẩu.
+Validator backend kiểm tra kiểu dữ liệu, khoảng ngày/giờ, ID call không trùng, `from < to`, cẩu là số nguyên dương và mọi vị trí nằm trong chiều dài tuyến cấu hình. Với lượt liên kết danh mục (`vesselId`), đoạn chiếm cầu phải đủ LOA. Cầu ảo không được trùng mã hoặc chồng lấn. Nó chưa kiểm tra xung đột nghiệp vụ, điều kiện thủy triều hoặc năng lực cẩu; ngưỡng LOA/DWT công bố chỉ tạo cảnh báo trên giao diện.
 
 Logic frontend đáng chú ý:
 
-- Xung đột khi hai call vừa chồng thời gian vừa chồng không gian sau khi cộng safety gap `25 m`.
+- Xung đột khi hai call vừa chồng thời gian vừa chồng không gian sau khi cộng safety gap từ `quay.safetyGap` (mặc định `25 m`).
 - KPI gồm mét·giờ khai thác, số lượt tàu, window adherence, tổng giờ trễ và số tàu có xung đột.
 - Chuyển tuần chỉ đổi nhãn ngày; dữ liệu vẫn là lịch mẫu theo `day/hour`, không phải timestamp thật.
 - Nút “Dữ liệu JSON” cho phép sửa toàn bộ snapshot rồi `PUT` về server.
@@ -326,10 +336,10 @@ Test hiện chưa chạy trình duyệt thật, chưa kiểm tra pixel/layout v�
 - Chỉ có một admin seed và chưa có màn hình quản lý user/đổi mật khẩu.
 - Role được lưu nhưng chưa được dùng để phân quyền.
 - Chưa có CSRF token và rate limit cho login; `sameSite=strict` chỉ giảm một phần rủi ro.
-- Berth data là một snapshot JSON duy nhất; chưa có CRUD theo call và chưa có version/audit history.
+- Berth data là một snapshot JSON duy nhất; chưa có endpoint CRUD riêng theo call (form hiện lưu toàn snapshot) và chưa có version/audit history.
 - Conflict/KPI chạy ở frontend; backend chưa validate các quy tắc này trước khi lưu.
 - Chưa có tối ưu xếp cầu, kéo-thả, timestamp thật, AIS/EDI hoặc dữ liệu triều thực tế.
-- Không có browser E2E test.
+- Chưa có bộ browser E2E tự động trong repository.
 
 Khi chuyển từ prototype sang vận hành thật, ưu tiên: quản lý user và CSRF/rate limit, chuẩn hóa schema berth data, versioning/audit trail, backend validation nghiệp vụ, sau đó mới thêm kéo-thả hoặc thuật toán tối ưu.
 
@@ -362,3 +372,23 @@ Thời gian tuyệt đối lưu dưới dạng Unix milliseconds UTC; `week_star
 **Phạm vi hiện tại:** CLI tạo database/schema và import một lần. `npm start` không tự chạy migration. Giao diện và API cũ tiếp tục dùng JSON; sửa trên giao diện không cập nhật bảng chuẩn hóa. Bước tiếp theo là repository/API theo plan/tuần và service validate/publish có optimistic locking; chưa có UI hoặc endpoint cho việc này.
 
 Chi tiết ràng buộc, quy ước và truy vấn kiểm tra: [note/berth_window_sqlite.md](note/berth_window_sqlite.md). Kiểm thử database nằm ở `test/berth-database.test.js` và được chạy cùng `npm test`.
+
+### Tương thích CLI import
+
+CLI dùng `quay.length` và `quay.safetyGap` khi snapshot có cấu hình mới. Các thông số cảng, danh mục và DWT vẫn được bảo toàn trong JSON gốc lưu ở `berth_legacy_imports.source_json`; schema chuẩn hóa hiện chưa có cột DWT hoặc toàn bộ thông số công trình. UI/API tiếp tục thao tác snapshot, chưa đồng bộ danh mục mới sang các bảng chuẩn hóa.
+
+## Cấu hình và nhập dữ liệu
+
+Mở **Cấu hình và nhập dữ liệu** trên trang Berth Window:
+
+1. **Tuyến cầu và các đoạn cầu ảo:** nhập chiều dài, số cầu thực tế và thông số cảng; thêm/sửa/xóa đoạn bằng tọa độ. Không cần dựng ranh giới giả cho 02 cầu thực tế. Cầu ảo có thể để khoảng trống nhưng không chồng nhau, không làm tăng chiều dài tuyến.
+2. **Danh mục tàu:** nhập tên và LOA; IMO (7 chữ số, duy nhất) và DWT có thể để trống. ID được tạo tự động. Sửa danh mục không sửa thông số các lượt đã lập.
+3. **Danh sách lượt tàu:** bấm **Thêm lượt tàu** ngay trên bảng để mở form; từng dòng có **Xem / Sửa / Xóa**, xóa cần xác nhận. Form thêm/sửa nằm trong hộp thoại, đóng bằng Hủy hoặc Esc.
+
+   **Thêm / sửa lượt tàu:** chọn tàu từ danh mục hoặc dùng thông số từ lượt legacy đang có, số chuyến, tuyến/hãng tàu, thời gian bắt đầu, số giờ chiếm cầu, vị trí và mớn nước lượt tàu, số cẩu/sản lượng. Chọn cầu ảo chỉ gợi ý vị trí bắt đầu; kết thúc = bắt đầu + LOA. Lượt có thể đi qua nhiều đoạn ảo. Có thể sửa trực tiếp lượt legacy chưa liên kết danh mục, giữ thông số tàu, chiều dài chiếm cầu, cửa sổ cam kết và giờ gốc nếu không thay đổi. Lỗi lưu giữ form mở và hiển thị tại hộp thoại.
+
+Mỗi nút lưu ghi cùng JSON snapshot qua API hiện tại. Lượt mới chưa có cửa sổ cam kết (`window: null`); sửa lượt cũ giữ cửa sổ/tolerance. `ata` legacy được dùng làm bắt đầu kế hoạch, không xác nhận ATA/ATB/ATD thực tế. Chuyển tuần vẫn chỉ đổi nhãn ngày.
+
+LOA >225 m hoặc DWT >40.000 hiển thị cảnh báo kiểm tra tiếp nhận, không chặn lưu. DWT thiếu hiển thị “Chưa cung cấp”, không suy diễn. Thông số công bố do người dùng trích website cảng, chưa đối chiếu nguồn trực tiếp. Độ sâu -9,5 m chưa có mốc chuẩn; kích thước vũng quay 365 m chưa xác nhận đường kính. Không tự dùng hai thông số này để kết luận mớn nước/LOA cho phép.
+
+Database đang có giữ nguyên snapshot và lịch cũ. Đổi cấu hình sang 380 m sẽ bị từ chối nếu còn vị trí tàu ngoài tuyến; cần điều chỉnh lịch trước. Nút **Khởi tạo lại** có xác nhận và thay toàn bộ snapshot bằng cấu hình mới với danh mục/lịch trống, vì vậy chỉ dùng khi muốn xóa dữ liệu hiện tại.

@@ -66,7 +66,8 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
   assert.match(berthWindowPage.text, /id="fullscreenToggle"/);
 
   const initial = await agent.get('/api/berth-window').expect(200);
-  assert.equal(initial.body.data.calls.length, 12);
+  assert.equal(initial.body.data.calls.length, 0);
+  assert.equal(initial.body.data.quay.length, 380);
 
   const changed = structuredClone(initial.body.data);
   changed.terminal = 'Terminal kiểm thử';
