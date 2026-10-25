@@ -10,13 +10,14 @@ Trạng thái hiện tại:
 - Session 8 giờ được lưu trong chính SQLite, không dùng MemoryStore.
 - Dashboard và admin shell đã sẵn sàng để gắn thêm tool.
 - Berth Window đọc/ghi một JSON snapshot trong SQLite qua API có bảo vệ đăng nhập.
+- Đã có schema SQLite chuẩn hóa 11 bảng và CLI `npm run db:migrate` để import snapshot thành kế hoạch nháp theo tuần. API hiện tại chưa chuyển sang các bảng mới; xem mục 13.
 - Frontend tự tính xung đột, KPI và vẽ SVG; backend hiện chỉ validate cấu trúc trước khi lưu.
 - Có chế độ toàn màn hình chỉ hiển thị tool, cùng layout riêng cho điện thoại dọc/ngang.
 - Test tích hợp dùng `node:test` + Supertest + SQLite in-memory.
 
 Các quyết định quan trọng không được bỏ qua:
 
-1. Dữ liệu Berth Window hiện lưu trong **một row duy nhất** (`id = 1`) dưới dạng JSON, chưa chuẩn hóa thành các bảng vessel/call/window.
+1. API hiện tại vẫn đọc/ghi **một row duy nhất** (`id = 1`) trong `berth_window_datasets`. Các bảng vessel/call/window/plan mới được tạo bằng CLI migration riêng và chưa tự đồng bộ với JSON.
 2. Giới hạn cầu bến `900 m` đang xuất hiện ở cả `public/js/berth-window.js` và `src/services/berthDataValidator.js`. Nếu đổi chiều dài cầu, phải cập nhật đồng bộ.
 3. Dữ liệu mẫu có hai bản: bản chính ở `src/data/seedBerthData.js` và bản fallback trình duyệt trong `public/js/berth-window.js`. Khi đổi schema hoặc sample data, phải cập nhật cả hai.
 4. CSS của trang Berth Window được load theo thứ tự `berth-window.css` rồi `app.css`; `app.css` cố ý override phần admin shell và focus mode.
@@ -52,7 +53,7 @@ SQLite session + redirect /admin
 
 - Node.js `>= 20`, CommonJS (`require/module.exports`).
 - Express 5, EJS, `better-sqlite3`, `express-session`, `bcryptjs`, Helmet.
-- Không có ORM và chưa có migration framework; schema được tạo idempotently lúc khởi động.
+- Không có ORM. Schema nền được tạo idempotently lúc khởi động; schema Berth Window chuẩn hóa dùng SQL migration có version/checksum, chạy riêng bằng CLI.
 - JavaScript frontend thuần, không bundler và không framework UI.
 - Asset tĩnh được phục vụ trực tiếp từ `public/`.
 - Tên field API đang dùng camelCase; field nghiệp vụ trong JSON chủ yếu là tên ngắn theo tool cũ.
@@ -104,7 +105,7 @@ SQLite session + redirect /admin
 
 ## 5. Database
 
-`src/config/database.js` bật `foreign_keys`, WAL và `busy_timeout = 5000`, sau đó tạo ba bảng:
+`src/config/database.js` bật `foreign_keys`, WAL và `busy_timeout = 5000`, sau đó tạo ba bảng nền dưới đây. CLI ở mục 13 bổ sung các bảng Berth Window chuẩn hóa.
 
 ### `users`
 
@@ -331,3 +332,33 @@ Test hiện chưa chạy trình duyệt thật, chưa kiểm tra pixel/layout v�
 - Không có browser E2E test.
 
 Khi chuyển từ prototype sang vận hành thật, ưu tiên: quản lý user và CSRF/rate limit, chuẩn hóa schema berth data, versioning/audit trail, backend validation nghiệp vụ, sau đó mới thêm kéo-thả hoặc thuật toán tối ưu.
+
+## 13. SQLite Berth Window chuẩn hóa
+
+Schema đã được hiện thực ở `src/database/migrations/001_berth_window.sql`, gồm 11 bảng nghiệp vụ:
+
+```text
+terminals, quays, berth_sections, shipping_lines, services, vessels,
+berth_windows, tide_windows, vessel_calls, berth_plans, berth_plan_items
+```
+
+Hai bảng kỹ thuật là `schema_migrations` (version/checksum) và `berth_legacy_imports` (nguồn import, SHA-256, JSON gốc).
+
+```bash
+# Import JSON id=1 vào tuần cụ thể (ngày Thứ 2, giờ Việt Nam).
+npm run db:migrate -- --week-start 2026-10-19
+
+# Chỉ tạo schema, không import JSON.
+npm run db:migrate -- --schema-only
+
+# Tạo một DB local riêng; DB mới được seed tài khoản/dataset như ứng dụng.
+npm run db:migrate -- --database ./data/berth_demo.sqlite --week-start 2026-10-19
+```
+
+Mặc định dùng `DATABASE_PATH` từ `.env`, nếu thiếu thì dùng `data/mpc_ops.sqlite`. DB có sẵn được backup vào thư mục `backups/` cạnh file DB bằng SQLite backup API (bao gồm WAL). Schema và import chạy trong một transaction. Chạy lại cùng nguồn/tuần sẽ không tạo dữ liệu trùng; nguồn đã thay đổi hoặc tuần khác sẽ bị từ chối để tránh ghi đè lịch sử.
+
+Thời gian tuyệt đối lưu dưới dạng Unix milliseconds UTC; `week_start`/ngày hiệu lực dùng `YYYY-MM-DD`; template tuần dùng phút nguyên. Import chuyển `ata` cũ thành `planned_start_at`, để trống ATA/ATB/ATD thực tế, giữ `line` trong `legacy_line_label` và chưa suy diễn hãng tàu. Window import chỉ hiệu lực trong tuần được chọn; khung triều mang nguồn `legacy-demo`. Dữ liệu được tạo ở trạng thái `draft`, chưa phải kế hoạch đã được xác nhận nghiệp vụ.
+
+**Phạm vi hiện tại:** CLI tạo database/schema và import một lần. `npm start` không tự chạy migration. Giao diện và API cũ tiếp tục dùng JSON; sửa trên giao diện không cập nhật bảng chuẩn hóa. Bước tiếp theo là repository/API theo plan/tuần và service validate/publish có optimistic locking; chưa có UI hoặc endpoint cho việc này.
+
+Chi tiết ràng buộc, quy ước và truy vấn kiểm tra: [note/berth_window_sqlite.md](note/berth_window_sqlite.md). Kiểm thử database nằm ở `test/berth-database.test.js` và được chạy cùng `npm test`.
