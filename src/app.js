@@ -20,9 +20,12 @@ function createApp(options = {}) {
   const config = {
     databasePath: options.databasePath || process.env.DATABASE_PATH || path.join(rootDir, 'data', 'mpc_ops.sqlite'),
     adminUsername: options.adminUsername || process.env.ADMIN_USERNAME || 'admin',
-    adminPassword: options.adminPassword || process.env.ADMIN_PASSWORD || 'Admin@123',
+    adminPassword: options.adminPassword || process.env.ADMIN_PASSWORD || 'Mpc@123',
     sessionSecret: options.sessionSecret || process.env.SESSION_SECRET || 'development-only-change-this-secret',
-    secureCookie: options.secureCookie ?? process.env.NODE_ENV === 'production'
+    secureCookie: options.secureCookie ?? process.env.NODE_ENV === 'production',
+    demoYear: Object.hasOwn(options, 'demoYear')
+      ? options.demoYear
+      : Number(process.env.BERTH_DEMO_YEAR || 2026)
   };
   if (process.env.NODE_ENV === 'production' && !options.sessionSecret && !process.env.SESSION_SECRET) {
     throw new Error('SESSION_SECRET là bắt buộc khi chạy production.');
@@ -31,7 +34,8 @@ function createApp(options = {}) {
   const db = createDatabase({
     filename: config.databasePath,
     adminUsername: config.adminUsername,
-    adminPassword: config.adminPassword
+    adminPassword: config.adminPassword,
+    demoYear: config.demoYear
   });
   const sessionStore = new SQLiteSessionStore(db);
   const userModel = new User(db);

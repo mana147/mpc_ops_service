@@ -41,7 +41,7 @@ async function main() {
     } else {
       db = createDatabase({ filename,
         adminUsername: process.env.ADMIN_USERNAME || 'admin',
-        adminPassword: process.env.ADMIN_PASSWORD || 'Admin@123' });
+        adminPassword: process.env.ADMIN_PASSWORD || 'Mpc@123' });
     }
     // Schema + dữ liệu hoặc cùng thành công hoặc cùng rollback.
     const result = db.transaction(() => {

@@ -2,27 +2,43 @@
 
 const seedBerthData = require('../data/seedBerthData');
 const { validateBerthData } = require('../services/berthDataValidator');
+const { currentWeekStart, validateWeekStart } = require('../models/BerthWindow');
+
+function requestWeekStart(req) {
+  return validateWeekStart(req.query.weekStart || currentWeekStart());
+}
 
 function createBerthWindowApiController({ berthWindowModel }) {
   return {
     get(req, res) {
-      res.json(berthWindowModel.get());
+      try {
+        res.json(berthWindowModel.get(requestWeekStart(req)));
+      } catch (error) {
+        res.status(400).json({ message: error.message });
+      }
     },
 
     update(req, res) {
       try {
+        const weekStart = requestWeekStart(req);
         const data = validateBerthData(req.body);
-        const record = berthWindowModel.update(data, req.session.user.id);
-        res.json({ message: `Đã lưu ${data.calls.length} lượt tàu.`, ...record });
+        const record = berthWindowModel.update(weekStart, data, req.session.user.id);
+        res.json({ message: `Đã lưu ${data.calls.length} lượt tàu cho tuần ${weekStart}.`, ...record });
       } catch (error) {
-        res.status(422).json({ message: error.message });
+        const invalidWeek = error.message.startsWith('weekStart');
+        res.status(invalidWeek ? 400 : 422).json({ message: error.message });
       }
     },
 
     reset(req, res) {
-      const data = structuredClone(seedBerthData);
-      const record = berthWindowModel.update(data, req.session.user.id);
-      res.json({ message: 'Đã khởi tạo lại cấu hình cảng; danh mục và lịch tàu trống.', ...record });
+      try {
+        const weekStart = requestWeekStart(req);
+        const data = structuredClone(seedBerthData);
+        const record = berthWindowModel.update(weekStart, data, req.session.user.id);
+        res.json({ message: `Đã khởi tạo lại dữ liệu tuần ${weekStart}.`, ...record });
+      } catch (error) {
+        res.status(400).json({ message: error.message });
+      }
     }
   };
 }

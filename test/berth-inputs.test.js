@@ -59,22 +59,23 @@ test('snapshot cũ giữ nguyên và suy ra chiều dài từ dữ liệu đang 
 });
 
 test('API lưu và đọc lại cấu hình, danh mục, lượt tàu; lỗi không thay dữ liệu đã lưu', async t => {
-  const app = createApp({ databasePath: ':memory:', adminPassword: 'InputTest@123', sessionSecret: 'input-test-session-secret', secureCookie: false });
+  const app = createApp({ databasePath: ':memory:', adminPassword: 'InputTest@123', sessionSecret: 'input-test-session-secret', secureCookie: false, demoYear: null });
   t.after(() => { app.locals.sessionStore.close(); app.locals.db.close(); });
   const agent = request.agent(app);
   await agent.post('/login').type('form').send({ username: 'admin', password: 'InputTest@123' }).expect(302);
   const page = await agent.get('/admin/berth-window').expect(200);
   for (const id of ['quayForm', 'vesselForm', 'callForm']) assert.match(page.text, new RegExp(`id="${id}"`));
   const data = dataset();
-  await agent.put('/api/berth-window').send(data).expect(200);
-  const persisted = await agent.get('/api/berth-window').expect(200);
+  const api = '/api/berth-window?weekStart=2026-10-19';
+  await agent.put(api).send(data).expect(200);
+  const persisted = await agent.get(api).expect(200);
   assert.deepEqual(persisted.body.data, data);
   const invalid = structuredClone(data); invalid.quay.length = 200;
-  await agent.put('/api/berth-window').send(invalid).expect(422);
-  assert.deepEqual((await agent.get('/api/berth-window')).body.data, data);
+  await agent.put(api).send(invalid).expect(422);
+  assert.deepEqual((await agent.get(api)).body.data, data);
   // Vượt ngưỡng vẫn lưu để người lập kế hoạch kiểm tra điều kiện tiếp nhận.
   data.vessels[0].dwt = 41000;
-  await agent.put('/api/berth-window').send(data).expect(200);
-  const reset = await agent.post('/api/berth-window/reset').send({}).expect(200);
+  await agent.put(api).send(data).expect(200);
+  const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-19').send({}).expect(200);
   assert.deepEqual(reset.body.data, seed);
 });

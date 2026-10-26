@@ -9,18 +9,19 @@ Trạng thái hiện tại:
 - Authentication bằng username/password, mật khẩu hash với `bcryptjs`.
 - Session 8 giờ được lưu trong chính SQLite, không dùng MemoryStore.
 - Dashboard và admin shell đã sẵn sàng để gắn thêm tool.
-- Berth Window đọc/ghi một JSON snapshot trong SQLite qua API có bảo vệ đăng nhập.
+- Berth Window đọc/ghi JSON snapshot riêng theo từng tuần trong SQLite qua API có bảo vệ đăng nhập.
 - Đã có schema SQLite chuẩn hóa 11 bảng và CLI `npm run db:migrate` để import snapshot thành kế hoạch nháp theo tuần. API hiện tại chưa chuyển sang các bảng mới; xem mục 13.
 - Frontend tự tính xung đột, KPI và vẽ SVG; backend hiện chỉ validate cấu trúc trước khi lưu.
-- Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Dữ liệu khởi tạo là tuyến 380 m, 02 cầu thực tế, một đoạn ảo V1; danh mục và lịch trống.
+- Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Seed nền là tuyến 380 m, 02 cầu thực tế và một đoạn ảo V1.
+- Có dữ liệu demo theo tuần phủ tháng 01–12/2026: 08 tàu giả lập và 3–5 lượt tàu mỗi tuần. Tên/ID đều có dấu hiệu `DEMO`, không phải dữ liệu khai thác thật.
 - Có chế độ toàn màn hình chỉ hiển thị tool, cùng layout riêng cho điện thoại dọc/ngang.
 - Test tích hợp dùng `node:test` + Supertest + SQLite in-memory.
 
 Các quyết định quan trọng không được bỏ qua:
 
-1. API hiện tại vẫn đọc/ghi **một row duy nhất** (`id = 1`) trong `berth_window_datasets`. Các bảng vessel/call/window/plan mới được tạo bằng CLI migration riêng và chưa tự đồng bộ với JSON.
+1. API runtime đọc/ghi `berth_window_week_datasets`, khóa bằng ngày Thứ Hai `week_start`. Bảng `berth_window_datasets` (`id = 1`) được giữ làm nguồn chuyển tiếp legacy; các bảng vessel/call/window/plan tạo bằng CLI chưa tự đồng bộ với snapshot tuần.
 2. Chiều dài tuyến lấy từ `quay.length`; đoạn cầu ảo và vị trí tàu phải nằm trong phạm vi đó. Snapshot cũ thiếu `quay` được suy ra chiều dài từ `berths`, không tự chuyển hoặc ghi đè dữ liệu cũ.
-3. Dữ liệu khởi tạo chỉ có ở `src/data/seedBerthData.js`; frontend chờ API, không dùng dữ liệu mẫu dự phòng. `public/js/berth-domain.js` chia sẻ cách đọc cấu hình và cảnh báo năng lực giữa Node/trình duyệt.
+3. Cấu hình seed nền nằm ở `src/data/seedBerthData.js`; dữ liệu demo năm nằm ở `src/data/demoBerthData.js`. Frontend chờ API, không dùng dữ liệu mẫu dự phòng. `public/js/berth-domain.js` chia sẻ cách đọc cấu hình và cảnh báo năng lực giữa Node/trình duyệt.
 4. CSS của trang Berth Window được load theo thứ tự `berth-window.css` rồi `app.css`; `app.css` cố ý override phần admin shell và focus mode.
 5. Không đưa style của Berth Window vào dashboard/admin toàn cục. Dashboard chỉ dùng `public/css/app.css`.
 
@@ -66,11 +67,11 @@ SQLite session + redirect /admin
 .
 ├── public/
 │   ├── css/
-│   │   ├── app.css                 # Login, dashboard, admin shell, fullscreen/focus mode
+│   │   ├── app.css                 # Login, dashboard và admin shell
 │   │   └── berth-window.css        # Thành phần riêng của tool và responsive mobile
 │   └── js/
 │       ├── berth-domain.js         # Cấu hình tương thích snapshot cũ và cảnh báo năng lực
-│       └── berth-window.js         # Render SVG, KPI, conflict, JSON editor, fullscreen
+│       └── berth-window.js         # Render SVG, KPI và conflict theo dữ liệu snapshot
 ├── src/
 │   ├── config/
 │   │   ├── adminTools.js           # Registry tool hiển thị ở dashboard và sidebar
@@ -85,7 +86,7 @@ SQLite session + redirect /admin
 │   │   └── auth.js                 # requireAuth + redirectIfAuthenticated
 │   ├── models/
 │   │   ├── User.js                 # Query user bằng prepared statement
-│   │   └── BerthWindow.js          # Đọc/ghi JSON snapshot id=1
+│   │   └── BerthWindow.js          # Đọc/ghi JSON snapshot theo week_start
 │   ├── routes/
 │   │   ├── authRoutes.js           # /login, /logout
 │   │   ├── adminRoutes.js          # /admin, /admin/berth-window
@@ -125,6 +126,15 @@ SQLite session + redirect /admin
 |---|---|
 | `id` | Bị giới hạn luôn bằng `1` |
 | `json_data` | Toàn bộ dataset Berth Window dạng JSON string |
+| `updated_at` | Thời gian cập nhật gần nhất |
+| `updated_by` | FK tới `users.id` |
+
+### `berth_window_week_datasets`
+
+| Field | Ý nghĩa |
+|---|---|
+| `week_start` | Primary key, ngày Thứ Hai dạng `YYYY-MM-DD` |
+| `json_data` | Snapshot Berth Window riêng của tuần |
 | `updated_at` | Thời gian cập nhật gần nhất |
 | `updated_by` | FK tới `users.id` |
 
@@ -201,9 +211,9 @@ Logic frontend đáng chú ý:
 
 - Xung đột khi hai call vừa chồng thời gian vừa chồng không gian sau khi cộng safety gap từ `quay.safetyGap` (mặc định `25 m`).
 - KPI gồm mét·giờ khai thác, số lượt tàu, window adherence, tổng giờ trễ và số tàu có xung đột.
-- Chuyển tuần chỉ đổi nhãn ngày; dữ liệu vẫn là lịch mẫu theo `day/hour`, không phải timestamp thật.
-- Nút “Dữ liệu JSON” cho phép sửa toàn bộ snapshot rồi `PUT` về server.
-- Nút khôi phục gọi server để lấy lại `seedBerthData.js`.
+- Chuyển tuần tải snapshot riêng bằng `weekStart`; `day/hour` vẫn là tọa độ tương đối bên trong tuần đang chọn.
+- Lần đầu mở hệ thống, snapshot legacy được gắn cho tuần hiện tại. Tuần chưa có dữ liệu kế thừa cấu hình tuyến/danh mục nhưng bắt đầu với `calls` và `tideWindows` trống.
+- Endpoint reset gọi server để lấy lại `seedBerthData.js` cho tuần được chọn.
 
 ## 7. Route và API
 
@@ -223,11 +233,11 @@ Logic frontend đáng chú ý:
 
 | Method | Route | Kết quả |
 |---|---|---|
-| `GET` | `/api/berth-window` | `{ data, updatedAt, updatedBy }` |
-| `PUT` | `/api/berth-window` | Validate, ghi snapshot, trả `{ message, data, updatedAt, updatedBy }` |
-| `POST` | `/api/berth-window/reset` | Ghi lại seed server và trả record mới |
+| `GET` | `/api/berth-window?weekStart=YYYY-MM-DD` | Đọc snapshot của tuần, trả `{ weekStart, data, updatedAt, updatedBy }` |
+| `PUT` | `/api/berth-window?weekStart=YYYY-MM-DD` | Validate và ghi snapshot của đúng tuần |
+| `POST` | `/api/berth-window/reset?weekStart=YYYY-MM-DD` | Ghi lại seed server cho đúng tuần |
 
-Mã lỗi chính: `401` khi chưa đăng nhập, `422` khi payload không hợp lệ, `404` khi route không tồn tại, `500` cho lỗi nội bộ.
+Mã lỗi chính: `400` khi `weekStart` không hợp lệ, `401` khi chưa đăng nhập, `422` khi payload không hợp lệ, `404` khi route không tồn tại, `500` cho lỗi nội bộ.
 
 ## 8. Dashboard và cách thêm tool mới
 
@@ -257,14 +267,7 @@ Mã lỗi chính: `401` khi chưa đăng nhập, `422` khi payload không hợp 
 
 Nếu số tool tăng nhiều, nên tách `adminController.js` thành dashboard controller và controller trang riêng cho từng tool; hiện file này vẫn nhỏ nên chưa tách.
 
-## 9. Responsive và fullscreen Berth Window
-
-Nút `#fullscreenToggle` bật class `berth-focus-mode` trên `<body>`:
-
-- Ẩn sidebar và admin topbar.
-- Giữ nút thoát trong tool.
-- Thử dùng Fullscreen API; nếu Safari/iOS từ chối thì CSS focus mode vẫn hoạt động.
-- Có thể thoát bằng nút hoặc phím `Esc`.
+## 9. Responsive Berth Window
 
 JavaScript tự đổi tỷ lệ SVG:
 
@@ -291,11 +294,14 @@ PORT=3000
 NODE_ENV=development
 SESSION_SECRET=replace-with-a-long-random-string
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=Admin@123
+ADMIN_PASSWORD=Mpc@123
 DATABASE_PATH=./data/mpc_ops.sqlite
+BERTH_DEMO_YEAR=2026
 ```
 
-Tài khoản mặc định chỉ dành cho local: `admin / Admin@123`. Trước khi chạy lần đầu ở môi trường thật, phải thay `SESSION_SECRET` và `ADMIN_PASSWORD`. Production sẽ từ chối khởi động nếu không có `SESSION_SECRET`.
+`BERTH_DEMO_YEAR` mặc định là `2026`. Khi khởi động, ứng dụng tạo 53 snapshot tuần bao phủ các tuần có ngày thuộc năm 2026. Tuần chưa tồn tại được tạo mới; tuần đã tồn tại chỉ được bổ sung danh mục tàu hoặc danh sách lượt tàu khi mảng tương ứng đang trống. Cấu hình tuyến và dữ liệu không rỗng của người dùng được giữ nguyên. Có thể truyền `demoYear: null` khi tạo app trong kiểm thử để tắt seed demo.
+
+Tài khoản mặc định chỉ dành cho local: `admin / Mpc@123`. Trước khi chạy lần đầu ở môi trường thật, phải thay `SESSION_SECRET` và `ADMIN_PASSWORD`. Production sẽ từ chối khởi động nếu không có `SESSION_SECRET`.
 
 Các script:
 
@@ -316,7 +322,7 @@ npm test      # integration tests
 - API từ chối request chưa đăng nhập.
 - Login sai và login đúng.
 - Redirect vào dashboard.
-- Render dashboard và Berth Window, bao gồm nút fullscreen.
+- Render dashboard và Berth Window.
 - Đọc, ghi và đọc lại snapshot SQLite.
 - Payload không hợp lệ trả `422`.
 - Logout hủy session.
@@ -336,7 +342,7 @@ Test hiện chưa chạy trình duyệt thật, chưa kiểm tra pixel/layout v�
 - Chỉ có một admin seed và chưa có màn hình quản lý user/đổi mật khẩu.
 - Role được lưu nhưng chưa được dùng để phân quyền.
 - Chưa có CSRF token và rate limit cho login; `sameSite=strict` chỉ giảm một phần rủi ro.
-- Berth data là một snapshot JSON duy nhất; chưa có endpoint CRUD riêng theo call (form hiện lưu toàn snapshot) và chưa có version/audit history.
+- Berth data là các snapshot JSON theo tuần; chưa có endpoint CRUD riêng theo call (form hiện lưu toàn snapshot) và chưa có version/audit history.
 - Conflict/KPI chạy ở frontend; backend chưa validate các quy tắc này trước khi lưu.
 - Chưa có tối ưu xếp cầu, kéo-thả, timestamp thật, AIS/EDI hoặc dữ liệu triều thực tế.
 - Chưa có bộ browser E2E tự động trong repository.
@@ -369,7 +375,7 @@ Mặc định dùng `DATABASE_PATH` từ `.env`, nếu thiếu thì dùng `data/
 
 Thời gian tuyệt đối lưu dưới dạng Unix milliseconds UTC; `week_start`/ngày hiệu lực dùng `YYYY-MM-DD`; template tuần dùng phút nguyên. Import chuyển `ata` cũ thành `planned_start_at`, để trống ATA/ATB/ATD thực tế, giữ `line` trong `legacy_line_label` và chưa suy diễn hãng tàu. Window import chỉ hiệu lực trong tuần được chọn; khung triều mang nguồn `legacy-demo`. Dữ liệu được tạo ở trạng thái `draft`, chưa phải kế hoạch đã được xác nhận nghiệp vụ.
 
-**Phạm vi hiện tại:** CLI tạo database/schema và import một lần. `npm start` không tự chạy migration. Giao diện và API cũ tiếp tục dùng JSON; sửa trên giao diện không cập nhật bảng chuẩn hóa. Bước tiếp theo là repository/API theo plan/tuần và service validate/publish có optimistic locking; chưa có UI hoặc endpoint cho việc này.
+**Phạm vi hiện tại:** CLI tạo database/schema và import một lần. `npm start` không tự chạy migration. Giao diện và API tiếp tục dùng snapshot JSON theo tuần; sửa trên giao diện không cập nhật bảng chuẩn hóa. Bảng legacy `berth_window_datasets` cũng không còn là dữ liệu runtime sau khi snapshot tuần đầu tiên được tạo. Bước tiếp theo là repository/API theo plan và service validate/publish có optimistic locking; chưa có UI hoặc endpoint cho việc này.
 
 Chi tiết ràng buộc, quy ước và truy vấn kiểm tra: [note/berth_window_sqlite.md](note/berth_window_sqlite.md). Kiểm thử database nằm ở `test/berth-database.test.js` và được chạy cùng `npm test`.
 
@@ -387,8 +393,8 @@ Mở **Cấu hình và nhập dữ liệu** trên trang Berth Window:
 
    **Thêm / sửa lượt tàu:** chọn tàu từ danh mục hoặc dùng thông số từ lượt legacy đang có, số chuyến, tuyến/hãng tàu, thời gian bắt đầu, số giờ chiếm cầu, vị trí và mớn nước lượt tàu, số cẩu/sản lượng. Chọn cầu ảo chỉ gợi ý vị trí bắt đầu; kết thúc = bắt đầu + LOA. Lượt có thể đi qua nhiều đoạn ảo. Có thể sửa trực tiếp lượt legacy chưa liên kết danh mục, giữ thông số tàu, chiều dài chiếm cầu, cửa sổ cam kết và giờ gốc nếu không thay đổi. Lỗi lưu giữ form mở và hiển thị tại hộp thoại.
 
-Mỗi nút lưu ghi cùng JSON snapshot qua API hiện tại. Lượt mới chưa có cửa sổ cam kết (`window: null`); sửa lượt cũ giữ cửa sổ/tolerance. `ata` legacy được dùng làm bắt đầu kế hoạch, không xác nhận ATA/ATB/ATD thực tế. Chuyển tuần vẫn chỉ đổi nhãn ngày.
+Mỗi nút lưu ghi JSON snapshot của tuần đang mở qua API. Lượt mới chưa có cửa sổ cam kết (`window: null`); sửa lượt cũ giữ cửa sổ/tolerance. `ata` legacy được dùng làm bắt đầu kế hoạch trong tuần, không xác nhận ATA/ATB/ATD thực tế. Chuyển tuần tải dữ liệu độc lập của tuần tương ứng.
 
 LOA >225 m hoặc DWT >40.000 hiển thị cảnh báo kiểm tra tiếp nhận, không chặn lưu. DWT thiếu hiển thị “Chưa cung cấp”, không suy diễn. Thông số công bố do người dùng trích website cảng, chưa đối chiếu nguồn trực tiếp. Độ sâu -9,5 m chưa có mốc chuẩn; kích thước vũng quay 365 m chưa xác nhận đường kính. Không tự dùng hai thông số này để kết luận mớn nước/LOA cho phép.
 
-Database đang có giữ nguyên snapshot và lịch cũ. Đổi cấu hình sang 380 m sẽ bị từ chối nếu còn vị trí tàu ngoài tuyến; cần điều chỉnh lịch trước. Nút **Khởi tạo lại** có xác nhận và thay toàn bộ snapshot bằng cấu hình mới với danh mục/lịch trống, vì vậy chỉ dùng khi muốn xóa dữ liệu hiện tại.
+Database đang có giữ nguyên snapshot và lịch cũ. Đổi cấu hình sang 380 m sẽ bị từ chối nếu còn vị trí tàu ngoài tuyến; cần điều chỉnh lịch trước. Endpoint reset thay snapshot của tuần được chỉ định bằng cấu hình mới với danh mục/lịch trống, vì vậy chỉ dùng khi muốn xóa dữ liệu tuần đó.

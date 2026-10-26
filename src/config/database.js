@@ -5,8 +5,9 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 const seedBerthData = require('../data/seedBerthData');
+const { seedDemoBerthWeeks } = require('../data/demoBerthData');
 
-function createDatabase({ filename, adminUsername, adminPassword }) {
+function createDatabase({ filename, adminUsername, adminPassword, demoYear = 2026 }) {
   if (filename !== ':memory:') {
     fs.mkdirSync(path.dirname(filename), { recursive: true });
   }
@@ -33,6 +34,15 @@ function createDatabase({ filename, adminUsername, adminPassword }) {
       FOREIGN KEY (updated_by) REFERENCES users(id)
     );
 
+    CREATE TABLE IF NOT EXISTS berth_window_week_datasets (
+      week_start TEXT PRIMARY KEY
+        CHECK (coalesce(date(week_start, '+0 days') = week_start AND strftime('%w', week_start) = '1', 0)),
+      json_data TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_by INTEGER,
+      FOREIGN KEY (updated_by) REFERENCES users(id)
+    );
+
     CREATE TABLE IF NOT EXISTS sessions (
       sid TEXT PRIMARY KEY,
       sess TEXT NOT NULL,
@@ -41,6 +51,9 @@ function createDatabase({ filename, adminUsername, adminPassword }) {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
       ON sessions(expires_at);
+
+    CREATE INDEX IF NOT EXISTS idx_berth_window_week_updated_at
+      ON berth_window_week_datasets(updated_at);
   `);
 
   const userCount = db.prepare('SELECT COUNT(*) AS total FROM users').get().total;
@@ -54,6 +67,8 @@ function createDatabase({ filename, adminUsername, adminPassword }) {
     db.prepare('INSERT INTO berth_window_datasets (id, json_data) VALUES (1, ?)')
       .run(JSON.stringify(seedBerthData));
   }
+
+  if (demoYear !== null) seedDemoBerthWeeks(db, { year: demoYear });
 
   return db;
 }

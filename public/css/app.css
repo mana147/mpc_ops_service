@@ -40,6 +40,7 @@ body { font-family: "IBM Plex Sans", system-ui, sans-serif; }
 .admin-weeknav { margin-left: auto; display: flex; align-items: center; gap: 7px; }
 .admin-weeknav button { padding: 4px 10px; border: 1px solid var(--app-rule); border-radius: 2px; background: #fff; color: var(--app-ink); }
 .admin-weeknav button:hover { border-color: var(--app-steel); background: #f5f7f8; }
+.admin-weeknav button:disabled { opacity: .55; cursor: wait; }
 .admin-weeknav .range { min-width: 174px; color: var(--app-ink); font-family: ui-monospace, monospace; font-size: 12px; text-align: center; }
 .admin-user-menu { margin-left: auto; display: flex; align-items: center; gap: 9px; padding-left: 20px; border-left: 1px solid #e1e4e1; color: #4d5a64; font-size: 12.5px; }
 .admin-weeknav + .admin-user-menu { margin-left: 0; }
@@ -77,24 +78,7 @@ body { font-family: "IBM Plex Sans", system-ui, sans-serif; }
 .tool-context strong { color: var(--app-ink); font-weight: 500; }
 .tool-context p { margin: 0; color: var(--app-muted); font-size: 11.5px; }
 .tool-context-actions { display: flex; align-items: center; gap: 12px; }
-.fullscreen-toggle { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 5px 10px; border: 1px solid var(--app-rule); border-radius: 2px; background: var(--app-surface); color: var(--app-ink); font: inherit; font-size: 11.5px; cursor: pointer; }
-.fullscreen-toggle:hover { border-color: var(--app-steel); color: var(--app-steel); }
-.fullscreen-icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: square; stroke-linejoin: miter; }
-.fullscreen-icon-exit { display: none; }
-.berth-focus-mode .fullscreen-icon-enter { display: none; }
-.berth-focus-mode .fullscreen-icon-exit { display: block; }
-.berth-focus-mode .fullscreen-label { font-size: 0; }
-.berth-focus-mode .fullscreen-label::after { content: "Thoát toàn màn hình"; font-size: 11.5px; }
 .tool-wrap { padding: 0; }
-.berth-focus-mode { background: var(--app-paper); }
-.berth-focus-mode .admin-shell { display: block; min-height: 100vh; }
-.berth-focus-mode .admin-sidebar,
-.berth-focus-mode .admin-topbar { display: none; }
-.berth-focus-mode .admin-content-wide { max-width: none; padding: 10px; }
-.berth-focus-mode .tool-context { margin-bottom: 8px; }
-.berth-focus-mode .tool-breadcrumb a,
-.berth-focus-mode .tool-breadcrumb span { display: none; }
-.berth-focus-mode .tool-breadcrumb strong { font-size: 13px; font-weight: 600; }
 .btn-primary { background: var(--app-steel) !important; border-color: var(--app-steel) !important; color: #fff !important; }
 
 .auth-page { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: var(--app-paper); color: var(--app-ink); font-family: "IBM Plex Sans", system-ui, sans-serif; }
@@ -137,11 +121,6 @@ body { font-family: "IBM Plex Sans", system-ui, sans-serif; }
   .tool-context { align-items: flex-start; }
   .tool-breadcrumb { padding-top: 7px; }
   .tool-context-actions p { display: none; }
-  .fullscreen-toggle { width: 38px; padding: 5px; }
-  .fullscreen-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .berth-focus-mode .fullscreen-label::after { content: ""; }
-  .berth-focus-mode .admin-content-wide { padding: 5px; }
-  .berth-focus-mode .tool-context { margin: 0 2px 5px; }
   .tool-grid { grid-template-columns: 1fr; }
 }
 
@@ -151,5 +130,4 @@ body { font-family: "IBM Plex Sans", system-ui, sans-serif; }
   .admin-topbar { min-height: 52px; padding-top: 7px; padding-bottom: 7px; }
   .admin-content-wide { padding: 7px; }
   .tool-context { margin-bottom: 6px; }
-  .berth-focus-mode .admin-content-wide { padding: 4px; }
 }

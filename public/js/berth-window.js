@@ -51,6 +51,13 @@ function baseMonday() {
 function dateOf(dayIdx) { const d = baseMonday(); d.setDate(d.getDate() + dayIdx); return d; }
 // Định dạng ngày/tháng trên thanh chuyển tuần và trục thời gian.
 const dm = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
+// Khóa tuần gửi API luôn là ngày Thứ 2 dạng YYYY-MM-DD theo lịch của trình duyệt.
+const dateKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const weekApiUrl = () => `/api/berth-window?weekStart=${encodeURIComponent(dateKey(baseMonday()))}`;
+function renderWeekRange() {
+	const start = dateOf(0), end = dateOf(6);
+	$('#range').textContent = dm(start) + ' - ' + dm(end) + '/' + end.getFullYear();
+}
 
 /** Điều chỉnh tỷ lệ biểu đồ cho desktop, điện thoại dọc và điện thoại xoay ngang. */
 function updateResponsiveScale() {
@@ -274,8 +281,7 @@ function draw() {
 	const svcs = [...new Set(data.calls.map(c => c.service).filter(Boolean))].sort();
 	const cur = $('#filterSvc').value;
 	$('#filterSvc').innerHTML = '<option value="">Tất cả</option>' + svcs.map(s => `<option${s === cur ? ' selected' : ''}>${esc(s)}</option>`).join('');
-	const a = dateOf(0), b = dateOf(6);
-	$('#range').textContent = dm(a) + ' - ' + dm(b) + '/' + b.getFullYear();
+	renderWeekRange();
 	renderAxis();
 	renderChart(calls);
 	renderKpis(metrics(calls));
@@ -283,59 +289,24 @@ function draw() {
 	renderDetail(calls);
 }
 
-// Chuyển tuần chỉ đổi mốc ngày; snapshot lưu lịch theo thứ và giờ tương đối.
-$('#prevw').onclick = () => { weekOffset--; draw(); };
+/** Chuyển tuần và tải snapshot riêng của đúng tuần đó. */
+async function changeWeek(delta) {
+	if (dataSaving) return;
+	const previousOffset = weekOffset;
+	weekOffset += delta;
+	renderWeekRange();
+	if (!await loadData()) {
+		weekOffset = previousOffset;
+		draw();
+	}
+}
 
-$('#nextw').onclick = () => { weekOffset++; draw(); };
+$('#prevw').onclick = () => changeWeek(-1);
+
+$('#nextw').onclick = () => changeWeek(1);
 
 // Vẽ lại khi thay checkbox hoặc bộ lọc tuyến.
 ['showWindow', 'showTide', 'filterSvc'].forEach(id => $('#' + id).addEventListener('change', draw));
-
-/** Bật chế độ chỉ hiển thị tool; Fullscreen API là tăng cường tùy trình duyệt. */
-const fullscreenToggle = $('#fullscreenToggle');
-const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
-const requestNativeFullscreen = document.documentElement.requestFullscreen
-	? () => document.documentElement.requestFullscreen()
-	: (document.documentElement.webkitRequestFullscreen ? () => document.documentElement.webkitRequestFullscreen() : null);
-const exitNativeFullscreen = document.exitFullscreen
-	? () => document.exitFullscreen()
-	: (document.webkitExitFullscreen ? () => document.webkitExitFullscreen() : null);
-
-function setFocusMode(enabled) {
-	document.body.classList.toggle('berth-focus-mode', enabled);
-	fullscreenToggle.setAttribute('aria-pressed', String(enabled));
-	fullscreenToggle.setAttribute('aria-label', enabled ? 'Thoát chế độ toàn màn hình' : 'Mở Berth Window toàn màn hình');
-	fullscreenToggle.title = enabled ? 'Thoát toàn màn hình' : 'Mở toàn màn hình';
-	draw();
-}
-
-fullscreenToggle.addEventListener('click', async () => {
-	const enabled = document.body.classList.contains('berth-focus-mode');
-	if (enabled) {
-		setFocusMode(false);
-		if (fullscreenElement() && exitNativeFullscreen) {
-			try { await exitNativeFullscreen(); } catch (_) { /* CSS focus mode đã được tắt. */ }
-		}
-		return;
-	}
-
-	setFocusMode(true);
-	if (requestNativeFullscreen) {
-		try { await requestNativeFullscreen(); } catch (_) { /* Safari/iOS vẫn dùng CSS focus mode. */ }
-	}
-});
-
-function syncFullscreenExit() {
-	if (!fullscreenElement() && document.body.classList.contains('berth-focus-mode')) setFocusMode(false);
-}
-
-document.addEventListener('fullscreenchange', syncFullscreenExit);
-document.addEventListener('webkitfullscreenchange', syncFullscreenExit);
-document.addEventListener('keydown', event => {
-	if (event.key === 'Escape' && !fullscreenElement() && document.body.classList.contains('berth-focus-mode')) {
-		setFocusMode(false);
-	}
-});
 
 let resizeTimer;
 window.addEventListener('resize', () => {
@@ -346,13 +317,6 @@ window.addEventListener('resize', () => {
 		$('#scroller').scrollLeft = hoursFromWeekStart * HOUR_PX;
 	}, 120);
 });
-
-// Mở bảng JSON và điền dữ liệu đang được hiển thị.
-$('#toggleIO').onclick = () => {
-	if (!data) return;
-	const p = $('#ioPanel'); p.classList.toggle('hidden');
-	if (!p.classList.contains('hidden')) $('#jsonBox').value = JSON.stringify(data, null, 2);
-};
 
 /** Gọi API và đưa người dùng về trang đăng nhập nếu phiên đã hết hạn. */
 async function apiFetch(url, options = {}) {
@@ -386,79 +350,25 @@ async function apiFetch(url, options = {}) {
 	}
 }
 
-/** Lấy dữ liệu berth window đang lưu trong SQLite. */
+/** Lấy snapshot của tuần đang chọn trong SQLite. */
 async function loadData() {
+	const navigationButtons = [$('#prevw'), $('#nextw')];
+	navigationButtons.forEach(button => { button.disabled = true; });
 	try {
-		const record = await apiFetch('/api/berth-window');
+		const record = await apiFetch(weekApiUrl());
 		data = record.data;
 		selected = null;
 		renderInputs();
-		inputMessage('Đã tải dữ liệu.');
+		inputMessage(`Đã tải dữ liệu tuần ${record.weekStart}.`);
 		draw();
+		return true;
 	} catch (e) {
-		$('#ioPanel').classList.remove('hidden');
-		$('#inputMsg').textContent = 'Chưa tải được dữ liệu. Hãy tải lại trang.';
-		$('#ioMsg').textContent = 'Không tải được dữ liệu: ' + e.message;
-		$('#ioMsg').className = 'msg err';
-		draw();
+		inputMessage(`Chưa tải được dữ liệu tuần: ${e.message}`, true);
+		return false;
+	} finally {
+		navigationButtons.forEach(button => { button.disabled = false; });
 	}
 }
-
-// Kiểm tra JSON ở trình duyệt rồi lưu dữ liệu qua API vào SQLite.
-$('#applyJson').onclick = async () => {
-	const button = $('#applyJson');
-	try {
-		const parsed = JSON.parse($('#jsonBox').value);
-		button.disabled = true;
-		const record = await apiFetch('/api/berth-window', { method: 'PUT', body: JSON.stringify(parsed) });
-		data = record.data;
-		selected = null;
-		renderInputs();
-		$('#jsonBox').value = JSON.stringify(data, null, 2);
-		draw();
-		$('#ioMsg').textContent = record.message;
-		$('#ioMsg').className = 'msg';
-	} catch (e) {
-		$('#ioMsg').textContent = 'Không lưu được JSON: ' + e.message;
-		$('#ioMsg').className = 'msg err';
-	} finally {
-		button.disabled = false;
-	}
-};
-
-// Khôi phục dữ liệu mẫu ở server và xóa lựa chọn hiện tại.
-$('#resetJson').onclick = async () => {
-	if (!window.confirm('Khởi tạo lại cấu hình tuyến cầu 380 m và xóa toàn bộ danh mục, lịch tàu hiện tại?')) return;
-	const button = $('#resetJson');
-	try {
-		button.disabled = true;
-		const record = await apiFetch('/api/berth-window/reset', { method: 'POST', body: '{}' });
-		data = record.data;
-		selected = null;
-		renderInputs();
-		$('#jsonBox').value = JSON.stringify(data, null, 2);
-		draw();
-		$('#ioMsg').textContent = record.message;
-		$('#ioMsg').className = 'msg';
-	} catch (e) {
-		$('#ioMsg').textContent = 'Không thể khôi phục: ' + e.message;
-		$('#ioMsg').className = 'msg err';
-	} finally {
-		button.disabled = false;
-	}
-};
-
-// Sao chép nguyên nội dung ô JSON.
-$('#copyJson').onclick = async () => {
-	try {
-		await navigator.clipboard.writeText($('#jsonBox').value);
-		$('#ioMsg').textContent = 'Đã sao chép.';
-		$('#ioMsg').className = 'msg';
-	} catch (e) {
-		$('#ioMsg').textContent = 'Trình duyệt không cho phép sao chép tự động.';
-		$('#ioMsg').className = 'msg err';
-	}
-};
 
 // Form thao tác trên cùng snapshot đang được biểu đồ sử dụng.
 const field = (form, name) => form.elements.namedItem(name);
@@ -510,12 +420,11 @@ function renderInputs() {
 }
 async function saveCandidate(candidate) {
   try {
-    const record = await apiFetch('/api/berth-window', { method: 'PUT', body: JSON.stringify(candidate) });
+    const record = await apiFetch(weekApiUrl(), { method: 'PUT', body: JSON.stringify(candidate) });
     data = record.data;
     selected = null;
     renderInputs();
     draw();
-    $('#jsonBox').value = JSON.stringify(data, null, 2);
     inputMessage(record.message);
     return true;
   } catch (error) { inputMessage(error.message, true); return false; }

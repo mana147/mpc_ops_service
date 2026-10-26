@@ -256,6 +256,7 @@ text {
 }
 
 .kpis {
+  margin-top: 16px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 1px;
@@ -591,7 +592,7 @@ dd {
   }
 }
 /* Form cấu hình chỉ thuộc trang Berth Window. */
-.input-panel { margin-bottom: 16px; }
+.input-panel { margin-bottom: 16px; margin-top: 16px; }
 .input-panel details { border-top: 1px solid var(--rule2); }
 .input-panel summary { padding: 12px 16px; cursor: pointer; font-weight: 600; }
 .data-form { padding: 0 16px 16px; }
