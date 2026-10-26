@@ -12,6 +12,7 @@ Trạng thái hiện tại:
 - Berth Window đọc/ghi JSON snapshot riêng theo từng tuần trong SQLite qua API có bảo vệ đăng nhập.
 - Đã có schema SQLite chuẩn hóa 11 bảng và CLI `npm run db:migrate` để import snapshot thành kế hoạch nháp theo tuần. API hiện tại chưa chuyển sang các bảng mới; xem mục 13.
 - Frontend tự tính xung đột, KPI và vẽ SVG; backend hiện chỉ validate cấu trúc trước khi lưu.
+- Berth Window có hai chế độ dùng chung dataset: biểu đồ không gian–thời gian toàn tuần và sơ đồ cầu bến 2D tại một thời điểm do người dùng chọn.
 - Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Seed nền là tuyến 380 m, 02 cầu thực tế và một đoạn ảo V1.
 - Có dữ liệu demo theo tuần phủ tháng 01–12/2026: 08 tàu giả lập và 3–5 lượt tàu mỗi tuần. Tên/ID đều có dấu hiệu `DEMO`, không phải dữ liệu khai thác thật.
 - Có chế độ toàn màn hình chỉ hiển thị tool, cùng layout riêng cho điện thoại dọc/ngang.
@@ -71,7 +72,7 @@ SQLite session + redirect /admin
 │   │   └── berth-window.css        # Thành phần riêng của tool và responsive mobile
 │   └── js/
 │       ├── berth-domain.js         # Cấu hình tương thích snapshot cũ và cảnh báo năng lực
-│       └── berth-window.js         # Render SVG, KPI và conflict theo dữ liệu snapshot
+│       └── berth-window.js         # Render biểu đồ tuần, sơ đồ cầu bến 2D, KPI và conflict
 ├── src/
 │   ├── config/
 │   │   ├── adminTools.js           # Registry tool hiển thị ở dashboard và sidebar
@@ -212,6 +213,8 @@ Logic frontend đáng chú ý:
 - Xung đột khi hai call vừa chồng thời gian vừa chồng không gian sau khi cộng safety gap từ `quay.safetyGap` (mặc định `25 m`).
 - KPI gồm mét·giờ khai thác, số lượt tàu, window adherence, tổng giờ trễ và số tàu có xung đột.
 - Chuyển tuần tải snapshot riêng bằng `weekStart`; `day/hour` vẫn là tọa độ tương đối bên trong tuần đang chọn.
+- Tab **Sơ đồ cầu bến 2D** dùng một thanh thời gian liên tục cho cả tuần và đặt tàu theo tỷ lệ `from/to` trên toàn chiều dài tuyến. Khi phát mô phỏng, tàu xuất hiện và tiến vào cầu trong 60 phút trước `start`, nằm tại cầu khi `start <= thời điểm chọn < end`, rồi rời cầu và mờ dần trong 60 phút sau `end`. Đây là chuyển động minh họa theo kế hoạch, không phải vị trí tàu thực tế.
+- Tàu xung đột tại đúng thời điểm đang xem được xếp sang làn phụ để cả hai vẫn nhìn thấy; màu cam là cảnh báo tiếp nhận và màu đỏ là xung đột không gian–thời gian.
 - Lần đầu mở hệ thống, snapshot legacy được gắn cho tuần hiện tại. Tuần chưa có dữ liệu kế thừa cấu hình tuyến/danh mục nhưng bắt đầu với `calls` và `tideWindows` trống.
 - Endpoint reset gọi server để lấy lại `seedBerthData.js` cho tuần được chọn.
 
@@ -275,7 +278,7 @@ JavaScript tự đổi tỷ lệ SVG:
 - Mobile dọc: `HOUR_PX = 8`, `M_PX = 0.36`.
 - Mobile ngang thấp hơn `560 px`: `HOUR_PX = 7`, `M_PX = 0.28`.
 
-CSS landscape đưa 5 KPI lên một hàng và bố trí danh sách/chi tiết thành hai cột. Khi sửa SVG, phải kiểm tra ít nhất desktop, mobile dọc và mobile ngang.
+CSS landscape đưa 5 KPI lên một hàng và bố trí danh sách/chi tiết thành hai cột. Sơ đồ 2D giữ tỷ lệ mét và cuộn ngang trên màn hình hẹp. Khi sửa SVG, phải kiểm tra ít nhất desktop, mobile dọc và mobile ngang.
 
 ## 10. Cài đặt và vận hành
 

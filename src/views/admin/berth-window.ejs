@@ -29,7 +29,12 @@
           </div>
         </div>
         <div class="wrap tool-wrap">
-    <div class="panel">
+    <div class="view-tabs" role="tablist" aria-label="Chế độ hiển thị Berth Window">
+      <button type="button" class="view-tab is-active" id="timelineTab" role="tab" aria-selected="true" aria-controls="timelineView">Biểu đồ không gian - thời gian</button>
+      <button type="button" class="view-tab" id="berth2dTab" role="tab" aria-selected="false" aria-controls="berth2dView">Sơ đồ cầu bến 2D</button>
+    </div>
+
+    <div class="panel" id="timelineView" role="tabpanel" aria-labelledby="timelineTab">
       <div class="panel-head">
         <h2>Biểu đồ không gian - thời gian</h2>
         <div class="tools">
@@ -50,6 +55,39 @@
         <span><i class="sw sw-conflict"></i> Xung đột vị trí</span>
         <span><i class="sw sw-commitment"></i> Cửa sổ cam kết</span>
         <span><i class="sw sw-tide"></i> Khung triều cho tàu mớn sâu</span>
+      </div>
+    </div>
+
+    <div class="panel berth-plan" id="berth2dView" role="tabpanel" aria-labelledby="berth2dTab" hidden>
+      <div class="panel-head berth-plan-head">
+        <div>
+          <h2>Sơ đồ cầu bến 2D</h2>
+          <p>Tàu dự kiến hiện diện tại cầu ở thời điểm được chọn.</p>
+        </div>
+        <div class="berth-plan-controls">
+          <button type="button" class="btn" id="berth2dPlay" aria-pressed="false">Phát ▶</button>
+        </div>
+      </div>
+      <div class="berth-plan-time">
+        <div class="berth-plan-range">
+          <input id="berth2dRange" type="range" min="0" max="10065" step="1" aria-label="Thanh thời gian toàn tuần">
+          <div class="berth-plan-days" aria-hidden="true">
+            <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+          </div>
+        </div>
+        <output id="berth2dMoment" for="berth2dRange"></output>
+      </div>
+      <div class="berth-plan-scroller">
+        <svg id="berth2dSvg" role="img" aria-label="Sơ đồ nhìn từ trên xuống của cầu bến và tàu dự kiến hiện diện"></svg>
+      </div>
+      <div class="berth-plan-footer">
+        <p id="berth2dSummary" role="status" aria-live="polite"></p>
+        <div class="legend berth-plan-legend" aria-label="Chú giải sơ đồ cầu bến">
+          <span><i class="sw berth-ship-normal"></i> Bình thường</span>
+          <span><i class="sw berth-ship-warning"></i> Kiểm tra tiếp nhận</span>
+          <span><i class="sw berth-ship-conflict"></i> Xung đột tại thời điểm chọn</span>
+          <span><i class="sw berth-ship-moving"></i> Đang cập / rời</span>
+        </div>
       </div>
     </div>
 

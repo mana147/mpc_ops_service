@@ -58,6 +58,27 @@ test('snapshot cũ giữ nguyên và suy ra chiều dài từ dữ liệu đang 
   assert.equal(JSON.stringify(legacy), original);
 });
 
+test('sơ đồ 2D lọc đúng tàu theo thời điểm và tách làn khi thiếu khoảng an toàn', () => {
+  const calls = [
+    { id: 'A', ata: { day: 0, hour: 8 }, dur: 4, from: 0, to: 100 },
+    { id: 'B', ata: { day: 0, hour: 9 }, dur: 2, from: 110, to: 180 },
+    { id: 'C', ata: { day: 0, hour: 12 }, dur: 2, from: 200, to: 260 }
+  ];
+  const active = domain.activeCallsAt(calls, 10);
+  assert.deepEqual(active.map(call => call.id), ['A', 'B']);
+  assert.deepEqual(domain.berthLanes(active, 25).map(item => item.lane), [0, 1]);
+  assert.deepEqual(domain.activeCallsAt(calls, 12).map(call => call.id), ['C']);
+});
+
+test('sơ đồ 2D mô phỏng tàu cập và rời bến trong khoảng chuyển tiếp', () => {
+  const call = { ata: { day: 0, hour: 8 }, dur: 4 };
+  assert.equal(domain.berthMotionAt(call, 6.99), null);
+  assert.deepEqual(domain.berthMotionAt(call, 7.5), { phase: 'approaching', progress: 0.5 });
+  assert.deepEqual(domain.berthMotionAt(call, 8), { phase: 'berthed', progress: 1 });
+  assert.deepEqual(domain.berthMotionAt(call, 12.5), { phase: 'departing', progress: 0.5 });
+  assert.equal(domain.berthMotionAt(call, 13), null);
+});
+
 test('API lưu và đọc lại cấu hình, danh mục, lượt tàu; lỗi không thay dữ liệu đã lưu', async t => {
   const app = createApp({ databasePath: ':memory:', adminPassword: 'InputTest@123', sessionSecret: 'input-test-session-secret', secureCookie: false, demoYear: null });
   t.after(() => { app.locals.sessionStore.close(); app.locals.db.close(); });

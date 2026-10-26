@@ -27,6 +27,16 @@ let dataSaving = false;
 let weekOffset = 0;
 // ID lượt tàu đang chọn trên biểu đồ, bảng và khung chi tiết.
 let selected = null;
+// Thời điểm đang xem trên sơ đồ cầu bến 2D, độc lập với dữ liệu kế hoạch.
+const berth2dNow = new Date();
+const MINUTES_PER_DAY = 24 * 60;
+const BERTH_2D_WEEK_END = 7 * MINUTES_PER_DAY - 15;
+const BERTH_2D_TRANSITION_HOURS = 1;
+const BERTH_2D_PLAY_STEP_MINUTES = 3;
+const BERTH_2D_PLAY_TICK_MS = 100;
+let berth2dWeekMinute = ((berth2dNow.getDay() + 6) % 7) * MINUTES_PER_DAY
+	+ Math.floor((berth2dNow.getHours() * 60 + berth2dNow.getMinutes()) / 15) * 15;
+let berth2dTimer = null;
 
 // Lấy phần tử DOM bằng CSS selector.
 const $ = s => document.querySelector(s);
@@ -202,6 +212,110 @@ function renderChart(calls) {
 	document.querySelectorAll('.callg').forEach(g => g.addEventListener('click', () => select(g.dataset.id)));
 }
 
+/** Đồng bộ thanh thời gian toàn tuần và nhãn thời điểm đang xem. */
+function renderBerth2dControls() {
+	const day = Math.floor(berth2dWeekMinute / MINUTES_PER_DAY);
+	const minute = berth2dWeekMinute % MINUTES_PER_DAY;
+	const clock = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+	$('#berth2dRange').value = berth2dWeekMinute;
+	$('#berth2dMoment').textContent = `${DAYS[day]} ${dm(dateOf(day))} · ${clock}`;
+}
+
+/** Vẽ ảnh chụp 2D của cầu bến tại một thời điểm trong tuần. */
+function renderBerth2d(calls) {
+	renderBerth2dControls();
+	const moment = berth2dWeekMinute / 60;
+	const visible = calls.map(call => ({ ...call, motion: BerthDomain.berthMotionAt(call, moment, BERTH_2D_TRANSITION_HOURS) }))
+		.filter(call => call.motion);
+	const active = visible.filter(call => call.motion.phase === 'berthed');
+	const activeIds = new Set(active.map(call => call.id));
+	const placed = BerthDomain.berthLanes(visible, SAFETY_GAP);
+	const laneCount = Math.max(1, ...placed.map(item => item.lane + 1));
+	const width = Math.max(820, $('#berth2dView').clientWidth - 2);
+	const shipHeight = 54;
+	const laneGap = 12;
+	const quayY = Math.max(220, laneCount * (shipHeight + laneGap) + 64);
+	const height = quayY + 96;
+	const left = 48;
+	const right = 32;
+	const quayWidth = width - left - right;
+	const x = metre => left + metre / QUAY_LEN * quayWidth;
+	const svc = $('#filterSvc').value;
+	const svg = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`];
+
+	svg.push(`<rect width="${width}" height="${quayY}" fill="#EAF3F6"/>`);
+	for (let waveY = 42; waveY < quayY - 30; waveY += 54) {
+		let wavePath = `M0 ${waveY}`;
+		for (let waveX = 0; waveX < width; waveX += 56) wavePath += ` Q ${waveX + 28} ${waveY - 5} ${waveX + 56} ${waveY}`;
+		svg.push(`<path d="${wavePath}" stroke="#D6E7EC" fill="none" opacity=".72"/>`);
+	}
+	svg.push(`<text x="${left}" y="25" font-size="11" font-weight="600" fill="#6E7B85" letter-spacing="1.4">MẶT NƯỚC · HÌNH CHIẾU BẰNG</text>`);
+
+	placed.forEach(({ call, lane }) => {
+		const bx = x(call.from);
+		const bw = Math.max(2, x(call.to) - bx);
+		const berthY = quayY - 18 - shipHeight - lane * (shipHeight + laneGap);
+		const motionDistance = Math.min(100, Math.max(70, quayY * .3));
+		const motionOffset = call.motion.phase === 'approaching'
+			? -motionDistance * (1 - call.motion.progress)
+			: (call.motion.phase === 'departing' ? -motionDistance * call.motion.progress : 0);
+		const by = berthY + motionOffset;
+		const conflictsNow = call.conflicts.some(id => activeIds.has(id));
+		const warning = call.warnings.length > 0;
+		const fill = conflictsNow ? '#F5DED9' : (warning ? '#F5E6C8' : '#DCE6EE');
+		const stroke = conflictsNow ? '#A63A2C' : (warning ? '#B5791E' : '#4E7FA3');
+		const text = conflictsNow ? '#7C2A1E' : (warning ? '#8C5D14' : '#26506E');
+		const dim = svc && call.service !== svc;
+		const motionOpacity = call.motion.phase === 'approaching'
+			? .15 + .85 * call.motion.progress
+			: (call.motion.phase === 'departing' ? Math.max(.05, 1 - call.motion.progress) : 1);
+		const opacity = motionOpacity * (dim ? .22 : 1);
+		const isSelected = selected === call.id;
+		const labelLimit = Math.max(4, Math.floor((bw - 12) / 7));
+		const vesselLabel = call.vessel.length > labelLimit ? `${call.vessel.slice(0, labelLimit - 1)}…` : call.vessel;
+		const phaseLabel = call.motion.phase === 'approaching' ? 'đang cập bến' : (call.motion.phase === 'departing' ? 'đang rời bến' : 'đang tại cầu');
+		const movingClass = call.motion.phase === 'berthed' ? '' : ' is-moving';
+		svg.push(`<g class="berth-ship${movingClass}" data-id="${esc(call.id)}" role="button" tabindex="0" opacity="${opacity}" aria-label="Chọn tàu ${esc(call.vessel)}, ${phaseLabel}">`);
+		if (call.motion.phase === 'berthed') svg.push(`<line x1="${bx + bw / 2}" y1="${by + shipHeight}" x2="${bx + bw / 2}" y2="${quayY}" stroke="${stroke}" stroke-dasharray="3 3" opacity=".55"/>`);
+		svg.push(`<rect x="${bx}" y="${by}" width="${bw}" height="${shipHeight}" rx="${Math.min(20, bw / 3)}" fill="${fill}" stroke="${isSelected ? '#16212B' : stroke}" stroke-width="${isSelected ? 3 : 1.5}"/>`);
+		if (bw >= 50) svg.push(`<text x="${bx + bw / 2}" y="${by + 23}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(vesselLabel)}</text>`);
+		if (bw >= 122) svg.push(`<text x="${bx + bw / 2}" y="${by + 40}" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="${text}" opacity=".82">${call.motion.phase === 'berthed' ? `${call.from}–${call.to} m${call.service ? ` · ${esc(call.service)}` : ''}` : phaseLabel}</text>`);
+		svg.push(`<title>${esc(call.vessel)} — ${phaseLabel}; dự kiến ${fmtDT(call.start)} → ${fmtDT(call.end)}, vị trí ${call.from}–${call.to} m</title></g>`);
+	});
+
+	svg.push(`<rect x="${left}" y="${quayY}" width="${quayWidth}" height="48" fill="#D9D7CE" stroke="#8B8C85"/>`);
+	(data.berths || []).forEach((berth, index) => {
+		const sectionX = x(berth.from);
+		const sectionWidth = x(berth.to) - sectionX;
+		svg.push(`<rect x="${sectionX}" y="${quayY}" width="${sectionWidth}" height="48" fill="${index % 2 ? '#C9C8C1' : '#D9D7CE'}" stroke="#8B8C85"/>`);
+		if (sectionWidth >= 40) svg.push(`<text x="${sectionX + sectionWidth / 2}" y="${quayY + 29}" text-anchor="middle" font-size="12" font-weight="600" fill="#3E4C58">${esc(berth.code)}</text>`);
+	});
+	const tickStep = QUAY_LEN <= 500 ? 50 : 100;
+	for (let metre = 0; metre <= QUAY_LEN; metre += tickStep) {
+		const tickX = x(metre);
+		svg.push(`<line x1="${tickX}" y1="${quayY + 48}" x2="${tickX}" y2="${quayY + 55}" stroke="#6E7B85"/>`);
+		svg.push(`<text x="${tickX}" y="${quayY + 72}" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="#6E7B85">${metre} m</text>`);
+	}
+	if (QUAY_LEN % tickStep !== 0) {
+		svg.push(`<text x="${x(QUAY_LEN)}" y="${quayY + 72}" text-anchor="end" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="#6E7B85">${QUAY_LEN} m</text>`);
+	}
+	if (!visible.length) svg.push(`<text x="${width / 2}" y="${quayY / 2}" text-anchor="middle" font-size="14" fill="#6E7B85">Không có tàu dự kiến tại hoặc gần cầu ở thời điểm này.</text>`);
+	svg.push('</svg>');
+
+	$('#berth2dSvg').outerHTML = svg.join('').replace('<svg ', '<svg id="berth2dSvg" role="img" aria-label="Sơ đồ nhìn từ trên xuống của cầu bến và tàu dự kiến hiện diện" ');
+	const conflicted = active.filter(call => call.conflicts.some(id => activeIds.has(id))).length;
+	const approaching = visible.filter(call => call.motion.phase === 'approaching').length;
+	const departing = visible.filter(call => call.motion.phase === 'departing').length;
+	const selectedVisible = visible.find(call => call.id === selected);
+	$('#berth2dSummary').textContent = `${active.length} tàu tại cầu · ${approaching} đang cập · ${departing} đang rời · ${conflicted} tàu có xung đột${selectedVisible ? ` · Đã chọn ${selectedVisible.vessel}` : ''}.`;
+	document.querySelectorAll('.berth-ship').forEach(ship => {
+		ship.addEventListener('click', () => select(ship.dataset.id));
+		ship.addEventListener('keydown', event => {
+			if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(ship.dataset.id); }
+		});
+	});
+}
+
 /** Hiển thị năm KPI đã tính trong các ô thông tin. */
 function renderKpis(m) {
 	const tiles = [
@@ -284,6 +398,7 @@ function draw() {
 	renderWeekRange();
 	renderAxis();
 	renderChart(calls);
+	renderBerth2d(calls);
 	renderKpis(metrics(calls));
 	renderTable(calls);
 	renderDetail(calls);
@@ -292,6 +407,7 @@ function draw() {
 /** Chuyển tuần và tải snapshot riêng của đúng tuần đó. */
 async function changeWeek(delta) {
 	if (dataSaving) return;
+	stopBerth2dPlayback();
 	const previousOffset = weekOffset;
 	weekOffset += delta;
 	renderWeekRange();
@@ -307,6 +423,44 @@ $('#nextw').onclick = () => changeWeek(1);
 
 // Vẽ lại khi thay checkbox hoặc bộ lọc tuyến.
 ['showWindow', 'showTide', 'filterSvc'].forEach(id => $('#' + id).addEventListener('change', draw));
+
+/** Dừng mô phỏng thời gian và khôi phục trạng thái nút phát. */
+function stopBerth2dPlayback() {
+	if (berth2dTimer) clearInterval(berth2dTimer);
+	berth2dTimer = null;
+	$('#berth2dPlay').textContent = 'Phát ▶';
+	$('#berth2dPlay').setAttribute('aria-pressed', 'false');
+}
+
+/** Chuyển giữa biểu đồ tuần và ảnh chụp cầu bến, không tải lại dữ liệu. */
+function switchBerthView(view) {
+	const showTimeline = view === 'timeline';
+	$('#timelineView').hidden = !showTimeline;
+	$('#berth2dView').hidden = showTimeline;
+	$('#timelineTab').classList.toggle('is-active', showTimeline);
+	$('#timelineTab').setAttribute('aria-selected', String(showTimeline));
+	$('#berth2dTab').classList.toggle('is-active', !showTimeline);
+	$('#berth2dTab').setAttribute('aria-selected', String(!showTimeline));
+	if (showTimeline) stopBerth2dPlayback();
+	else if (data) renderBerth2d(enrich());
+}
+
+$('#timelineTab').onclick = () => switchBerthView('timeline');
+$('#berth2dTab').onclick = () => switchBerthView('berth2d');
+$('#berth2dRange').oninput = event => {
+	berth2dWeekMinute = Number(event.target.value);
+	if (data) renderBerth2d(enrich());
+};
+$('#berth2dPlay').onclick = () => {
+	if (berth2dTimer) { stopBerth2dPlayback(); return; }
+	$('#berth2dPlay').textContent = 'Tạm dừng ❚❚';
+	$('#berth2dPlay').setAttribute('aria-pressed', 'true');
+	berth2dTimer = setInterval(() => {
+		if (berth2dWeekMinute >= BERTH_2D_WEEK_END) { stopBerth2dPlayback(); return; }
+		berth2dWeekMinute = Math.min(BERTH_2D_WEEK_END, berth2dWeekMinute + BERTH_2D_PLAY_STEP_MINUTES);
+		if (data) renderBerth2d(enrich());
+	}, BERTH_2D_PLAY_TICK_MS);
+};
 
 let resizeTimer;
 window.addEventListener('resize', () => {

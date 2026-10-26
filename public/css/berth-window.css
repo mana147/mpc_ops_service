@@ -116,6 +116,36 @@ button {
   border-radius: 2px
 }
 
+[hidden] {
+  display: none !important
+}
+
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--rule)
+}
+
+.view-tab {
+  padding: 9px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px
+}
+
+.view-tab:hover {
+  color: var(--ink)
+}
+
+.view-tab.is-active {
+  border-bottom-color: var(--steel);
+  color: var(--steel);
+  font-weight: 600
+}
+
 /* .panel+.panel {
   margin-top: 16px
 } */
@@ -253,6 +283,123 @@ text {
 
 .callg {
   cursor: pointer
+}
+
+.berth-plan-head > div:first-child p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12.5px
+}
+
+.berth-plan-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center
+}
+
+.berth-plan-time {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule2);
+  background: #F8F9F6
+}
+
+.berth-plan-time input[type=range] {
+  width: 100%;
+  accent-color: var(--steel)
+}
+
+.berth-plan-range {
+  min-width: 0
+}
+
+.berth-plan-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 2px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center
+}
+
+.berth-plan-days span + span {
+  border-left: 1px solid var(--rule2)
+}
+
+.berth-plan-time output {
+  min-width: 170px;
+  color: var(--ink2);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right
+}
+
+.berth-plan-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: #EAF3F6
+}
+
+.berth-ship {
+  cursor: pointer
+}
+
+.berth-ship.is-moving rect {
+  stroke-dasharray: 6 3
+}
+
+.berth-ship:focus {
+  outline: none
+}
+
+.berth-ship:focus rect {
+  stroke: var(--ink);
+  stroke-width: 3
+}
+
+.berth-plan-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--rule2)
+}
+
+.berth-plan-footer > p {
+  flex: 1 1 320px;
+  margin: 0;
+  padding: 10px 16px;
+  color: var(--ink2);
+  font-size: 12.5px
+}
+
+.berth-plan-legend {
+  border-top: 0;
+  margin-left: auto
+}
+
+.berth-ship-normal {
+  background: var(--steel-soft);
+  border: 1px solid var(--steel-line)
+}
+
+.berth-ship-warning {
+  background: var(--ochre-soft);
+  border: 1px solid var(--ochre-line)
+}
+
+.berth-ship-conflict {
+  background: var(--alarm-soft);
+  border: 1px solid var(--alarm)
+}
+
+.berth-ship-moving {
+  background: var(--steel-soft);
+  border: 1px dashed var(--steel-line)
 }
 
 .kpis {
@@ -485,6 +632,15 @@ dd {
 }
 
 @media (max-width:720px) {
+  .view-tabs {
+    overflow-x: auto
+  }
+
+  .view-tab {
+    flex: 0 0 auto;
+    padding: 8px 10px
+  }
+
   .panel-head {
     align-items: flex-start;
     padding: 10px
@@ -498,6 +654,29 @@ dd {
     width: 100%;
     margin-left: 0;
     gap: 8px 12px
+  }
+
+  .berth-plan-controls {
+    margin-left: auto
+  }
+
+  .berth-plan-time {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 8px 10px
+  }
+
+  .berth-plan-time output {
+    text-align: left
+  }
+
+  .berth-plan-footer > p {
+    padding: 8px 10px
+  }
+
+  .berth-plan-legend {
+    margin-left: 0;
+    padding-top: 0
   }
 
   label.chk {

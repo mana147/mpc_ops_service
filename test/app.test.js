@@ -64,6 +64,12 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
   const berthWindowPage = await agent.get('/admin/berth-window').expect(200);
   assert.match(berthWindowPage.text, /Dashboard/);
   assert.match(berthWindowPage.text, /Biểu đồ không gian - thời gian/);
+  assert.match(berthWindowPage.text, /Sơ đồ cầu bến 2D/);
+  assert.match(berthWindowPage.text, /id="berth2dRange"/);
+  assert.match(berthWindowPage.text, /max="10065"/);
+  assert.match(berthWindowPage.text, /id="berth2dSvg"/);
+  assert.doesNotMatch(berthWindowPage.text, /id="berth2dDay"/);
+  assert.doesNotMatch(berthWindowPage.text, /id="berth2dClock"/);
   assert.match(berthWindowPage.text, /id="quaySummary"/);
   assert.doesNotMatch(berthWindowPage.text, /id="fullscreenToggle"/);
   assert.doesNotMatch(berthWindowPage.text, /Dữ liệu JSON/i);
