@@ -70,10 +70,8 @@
       </div>
       <div class="berth-plan-time">
         <div class="berth-plan-range">
-          <input id="berth2dRange" type="range" min="0" max="10065" step="1" aria-label="Thanh thời gian toàn tuần">
-          <div class="berth-plan-days" aria-hidden="true">
-            <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
-          </div>
+          <input id="berth2dRange" type="range" min="0" max="1439" step="1" aria-label="Thanh thời gian trong khoảng ngày đang chọn">
+          <div class="berth-plan-days" id="berth2dDays" aria-hidden="true"></div>
         </div>
         <output id="berth2dMoment" for="berth2dRange"></output>
       </div>
@@ -115,7 +113,9 @@
   </div>
 
   <%- include('../partials/berth-call-dialog') %>
+  <%- include('../partials/berth-date-range') %>
 
+  <script src="/js/berth-dates.js" defer></script>
   <script src="/js/berth-domain.js" defer></script>
   <script src="/js/berth-window.js" defer></script>
 </body>

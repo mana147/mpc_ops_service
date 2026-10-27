@@ -5,7 +5,8 @@ const request = require('supertest');
 const { createApp } = require('../src/app');
 const { validateBerthData } = require('../src/services/berthDataValidator');
 const domain = require('../public/js/berth-domain');
-const seed = require('../src/data/seedBerthData');
+const seed = require('./fixtures/configuredBerthData.json');
+const emptySeed = require('../src/data/seedBerthData');
 const legacy = require('./fixtures/legacyBerthData.json');
 
 function dataset() {
@@ -98,5 +99,5 @@ test('API lưu và đọc lại cấu hình, danh mục, lượt tàu; lỗi kh�
   data.vessels[0].dwt = 41000;
   await agent.put(api).send(data).expect(200);
   const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-19').send({}).expect(200);
-  assert.deepEqual(reset.body.data, seed);
+  assert.deepEqual(reset.body.data, emptySeed);
 });

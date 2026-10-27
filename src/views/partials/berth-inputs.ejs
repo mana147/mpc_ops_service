@@ -4,6 +4,7 @@
     <details>
       <summary>Tuyến cầu và các đoạn cầu ảo</summary>
       <form id="quayForm" class="data-form">
+        <p>Cấu hình hiển thị lấy từ tuần chứa ngày bắt đầu khoảng chọn. Thay đổi cấu hình sẽ áp dụng cho các tuần giao với khoảng đang xem và kiểm tra cả những lượt tàu ngoài khoảng đó.</p>
         <div class="fields">
           <label>Tên tuyến cầu<input name="terminal" required></label>
           <label>Chiều dài tuyến (m)<input name="length" type="number" min="1" step="any" required></label>
@@ -17,7 +18,7 @@
           <label>Khoảng cách an toàn (m)<input name="safetyGap" type="number" min="0" step="any" required></label>
           <label>Nguồn năng lực công bố<input name="capacitySource" placeholder="Tên nguồn hoặc đường dẫn"></label>
         </div>
-        <p>Hai cầu thực tế dùng chung một tuyến liên tục. Cầu ảo chỉ chia vùng bố trí; tổng chiều dài tuyến không tăng. Độ sâu và vũng quay chưa được dùng để tự kết luận khả năng tiếp nhận.</p>
+        <p>Các cầu thực tế dùng chung một tuyến liên tục. Cầu ảo chỉ chia vùng bố trí; tổng chiều dài tuyến không tăng. Độ sâu và vũng quay chưa được dùng để tự kết luận khả năng tiếp nhận.</p>
         <div class="tablewrap"><table><thead><tr><th>Tên cầu ảo</th><th>Từ (m)</th><th>Đến (m)</th><th>Chiều dài (m)</th><th>Thao tác</th></tr></thead><tbody id="sectionRows"></tbody></table></div>
         <div class="io-actions"><button type="button" class="btn" id="addSection">Thêm đoạn cầu ảo</button><button class="btn btn-primary">Lưu cấu hình cầu</button></div>
         <p>Đoạn cầu ảo không chồng lấn và phải nằm trong tuyến. Giảm chiều dài tuyến sẽ bị từ chối nếu lượt tàu hiện tại nằm ngoài phạm vi mới.</p>

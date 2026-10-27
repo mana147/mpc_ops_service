@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const seedBerthData = require('../data/seedBerthData');
 const { seedDemoBerthWeeks } = require('../data/demoBerthData');
 
-function createDatabase({ filename, adminUsername, adminPassword, demoYear = 2026 }) {
+function createDatabase({ filename, adminUsername, adminPassword, demoYear = null }) {
   if (filename !== ':memory:') {
     fs.mkdirSync(path.dirname(filename), { recursive: true });
   }

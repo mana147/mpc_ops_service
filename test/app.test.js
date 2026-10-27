@@ -66,7 +66,7 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
   assert.match(berthWindowPage.text, /Biểu đồ không gian - thời gian/);
   assert.match(berthWindowPage.text, /Sơ đồ cầu bến 2D/);
   assert.match(berthWindowPage.text, /id="berth2dRange"/);
-  assert.match(berthWindowPage.text, /max="10065"/);
+  assert.match(berthWindowPage.text, /id="dateRangeDialog"/);
   assert.match(berthWindowPage.text, /id="berth2dSvg"/);
   assert.doesNotMatch(berthWindowPage.text, /id="berth2dDay"/);
   assert.doesNotMatch(berthWindowPage.text, /id="berth2dClock"/);
@@ -76,10 +76,11 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
 
   const initial = await agent.get('/api/berth-window').expect(200);
   assert.equal(initial.body.data.calls.length, 0);
-  assert.equal(initial.body.data.quay.length, 380);
+  assert.equal(initial.body.data.quay, null);
+  assert.deepEqual(initial.body.data.berths, []);
   assert.match(initial.body.weekStart, /^\d{4}-\d{2}-\d{2}$/);
 
-  const changed = structuredClone(initial.body.data);
+  const changed = structuredClone(require('./fixtures/configuredBerthData.json'));
   changed.terminal = 'Terminal kiểm thử';
   const saved = await agent.put('/api/berth-window').send(changed).expect(200);
   assert.equal(saved.body.data.terminal, 'Terminal kiểm thử');
@@ -93,6 +94,7 @@ test('API tách dữ liệu theo tuần và không lặp lịch tàu sang tuần
   const nextWeek = '2026-10-26';
   const first = await agent.get(`/api/berth-window?weekStart=${firstWeek}`).expect(200);
   const firstData = structuredClone(first.body.data);
+  if (!firstData.quay) Object.assign(firstData, structuredClone(require('./fixtures/configuredBerthData.json')));
   firstData.calls = [{
     id: 'WEEK-C1', vessel: 'Tàu tuần 1', service: null, line: '', window: null,
     ata: { day: 0, hour: 8 }, dur: 4, from: 0, to: 100,

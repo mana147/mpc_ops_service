@@ -804,3 +804,48 @@ dd {
 .call-dialog .data-form { padding-top: 16px; }
 .call-dialog .io-actions { justify-content: flex-end; }
 .call-dialog .msg { font-size: 13px; }
+
+/* Lịch chọn khoảng ngày dùng chung cho biểu đồ và sơ đồ 2D. */
+.date-range-dialog { width: min(430px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow: auto; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 60px #16212b33; }
+.date-range-dialog::backdrop { background: #16212b66; }
+.date-range-dialog .panel-head { padding: 12px 16px; flex-wrap: nowrap; align-items: center; justify-content: space-between; }
+.date-range-dialog .panel-head h2 { width: auto; font-size: 16px; }
+.date-range-body { padding: 0 16px 16px; }
+.date-range-hint { margin: 12px 0; color: var(--muted); font-size: 12px; }
+.date-range-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.date-range-fields label { min-width: 0; font-size: 12px; font-weight: 600; }
+.date-range-fields input { display: block; width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--rule); border-radius: 4px; background: white; font: inherit; color: var(--ink); }
+.calendar-heading { display: flex; align-items: center; justify-content: space-between; margin: 16px 0 10px; }
+.calendar-heading input { width: 175px; padding: 5px; border: 0; background: transparent; font: inherit; color: var(--ink); text-align: center; }
+.calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.calendar-weekdays { margin-bottom: 6px; text-align: center; font-size: 11px; color: var(--muted); }
+.calendar-day { min-height: 38px; padding: 4px; border: 1px solid transparent; border-radius: 4px; background: white; color: var(--ink); font-size: 13px; }
+.calendar-day.other-month { color: #8e969e; }
+.calendar-day.in-range { background: var(--steel-soft); color: var(--steel); }
+.calendar-day.is-today { border-color: var(--steel-line); font-weight: 700; }
+.calendar-day.range-edge { background: var(--steel); color: white; font-weight: 600; }
+.calendar-day:hover { outline: 1px solid var(--steel-line); outline-offset: -1px; }
+.date-range-message { min-height: 38px; margin: 10px 0; color: var(--muted); font-size: 12px; }
+.date-range-message.err { color: var(--alarm); }
+.date-range-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.date-range-actions .btn-primary { margin-left: auto; }
+.date-range-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#berth2dDays { position: relative; display: block; height: 22px; margin: 4px 8px 0; }
+#berth2dDays span { position: absolute; transform: translateX(-50%); padding: 0; border: 0; font-size: 10px; }
+#berth2dDays span:first-child { transform: none; }
+#berth2dDays span:last-child:not(:first-child) { transform: translateX(-100%); }
+@media (max-height: 560px) and (orientation: landscape) {
+  .calendar-day { min-height: 28px; }
+  .date-range-dialog { width: min(720px, calc(100% - 24px)); }
+  .date-range-dialog .panel-head { padding-top: 6px; padding-bottom: 6px; }
+  .date-range-body { display: grid; grid-template-columns: 245px minmax(0, 1fr); grid-template-areas: "hint calendar" "fields calendar" "message calendar" "actions calendar"; gap: 8px 18px; padding-top: 10px; }
+  .date-range-hint { grid-area: hint; margin: 0; }
+  .date-range-fields { grid-area: fields; gap: 8px; }
+  .date-range-calendar { grid-area: calendar; }
+  .date-range-message { grid-area: message; margin: 0; min-height: 20px; }
+  .date-range-actions { grid-area: actions; gap: 6px; }
+  .date-range-actions .btn { padding-left: 7px; padding-right: 7px; }
+  .calendar-heading { margin: 0 0 6px; }
+  .calendar-heading input { width: 160px; }
+}

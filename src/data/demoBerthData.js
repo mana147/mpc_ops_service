@@ -41,6 +41,14 @@ function demoWeekStarts(year) {
 
 function buildDemoWeekData(weekStart, weekIndex) {
   const data = structuredClone(seedBerthData);
+  // Cấu hình này chỉ được tạo khi chủ động bật demo, không dùng cho khởi tạo trống.
+  data.terminal = 'Tuyến cầu DEMO';
+  data.quay = {
+    length: 380, physicalBerthCount: 2, depth: null, depthDatum: '',
+    turningBasin: null, turningBasinMeasurement: 'unconfirmed',
+    maxLoa: 225, maxDwt: 40000, safetyGap: 25, capacitySource: ''
+  };
+  data.berths = [{ code: 'DEMO-V1', from: 0, to: 380 }];
   data.vessels = structuredClone(DEMO_VESSELS);
   const callCount = 3 + (weekIndex % 3);
   const dateId = weekStart.replaceAll('-', '');
@@ -100,6 +108,12 @@ function seedDemoBerthWeeks(db, { year = 2026 } = {}) {
       }
       const current = JSON.parse(existing.json_data);
       let changed = false;
+      if (current.quay === null && !current.berths?.length && !current.terminal) {
+        current.terminal = demoData.terminal;
+        current.quay = demoData.quay;
+        current.berths = demoData.berths;
+        changed = true;
+      }
       if (!Array.isArray(current.vessels) || current.vessels.length === 0) {
         current.vessels = demoData.vessels;
         changed = true;

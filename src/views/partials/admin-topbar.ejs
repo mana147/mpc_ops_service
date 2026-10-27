@@ -6,9 +6,9 @@
 
   <% if (weekNavigation) { %>
     <div class="weeknav admin-weeknav">
-      <button id="prevw" type="button" aria-label="Tuần trước">←</button>
-      <span class="range tnum" id="range" aria-live="polite"></span>
-      <button id="nextw" type="button" aria-label="Tuần sau">→</button>
+      <button id="prevw" type="button" aria-label="Khoảng thời gian trước">←</button>
+      <button class="range tnum" id="range" type="button" aria-label="Chọn khoảng ngày" aria-haspopup="dialog" aria-controls="dateRangeDialog" aria-live="polite"></button>
+      <button id="nextw" type="button" aria-label="Khoảng thời gian sau">→</button>
     </div>
   <% } %>
 

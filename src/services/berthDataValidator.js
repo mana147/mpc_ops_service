@@ -20,12 +20,19 @@ function validateTime(value, field) {
 
 function validateBerthData(payload) {
   assert(payload && typeof payload === 'object' && !Array.isArray(payload), 'Dữ liệu phải là một object JSON.');
-  assert(typeof payload.terminal === 'string' && payload.terminal.trim(), 'Thiếu tên terminal.');
-  assert(Array.isArray(payload.berths) && payload.berths.length > 0, 'Thiếu mảng "berths" hoặc mảng đang rỗng.');
+  assert(Array.isArray(payload.berths), 'Thiếu mảng "berths".');
   assert(Array.isArray(payload.tideWindows), 'Thiếu mảng "tideWindows".');
   assert(Array.isArray(payload.calls), 'Thiếu mảng "calls".');
+  const unconfigured = payload.terminal === '' && payload.quay === null && payload.berths.length === 0;
+  if (unconfigured) {
+    assert(payload.calls.length === 0 && payload.tideWindows.length === 0,
+      'Cần cấu hình cầu bến trước khi nhập lượt tàu hoặc khung triều.');
+  } else {
+    assert(typeof payload.terminal === 'string' && payload.terminal.trim(), 'Thiếu tên terminal.');
+    assert(payload.quay != null || payload.berths.length > 0, 'Thiếu cấu hình tuyến cầu.');
+  }
 
-  if (payload.quay !== undefined) {
+  if (!unconfigured && payload.quay !== undefined) {
     const q = payload.quay;
     assert(q && typeof q === 'object' && !Array.isArray(q), 'quay không hợp lệ.');
     assertNumber(q.length, 'quay.length', { min: 1 });

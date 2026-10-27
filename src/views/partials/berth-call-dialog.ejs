@@ -7,7 +7,7 @@
           <label>Số chuyến<input name="voyage"></label>
           <label>Tuyến dịch vụ<input name="service"></label>
           <label>Hãng tàu / đơn vị<input name="line"></label>
-          <label>Ngày bắt đầu<select name="day"><option value="0">Thứ 2</option><option value="1">Thứ 3</option><option value="2">Thứ 4</option><option value="3">Thứ 5</option><option value="4">Thứ 6</option><option value="5">Thứ 7</option><option value="6">Chủ nhật</option></select></label>
+          <label>Ngày bắt đầu<input name="date" type="date" required></label>
           <label>Giờ bắt đầu<input name="hour" type="time" required value="08:00"></label>
           <label>Thời gian chiếm cầu (giờ)<input name="dur" type="number" min="0.1" max="168" step="any" required value="12"></label>
           <label>Gợi ý từ cầu ảo<select name="section"></select></label>
@@ -19,7 +19,7 @@
         </div>
         <p id="callFormMsg" class="msg" role="status" aria-live="polite"></p>
         <p id="callPreview" role="status"></p>
-        <p>Lịch theo thứ/giờ trong tuần; chuyển tuần hiện chỉ đổi nhãn ngày. Lượt mới là tàu vãng lai; cửa sổ cam kết có thể cấu hình qua JSON. Lượt mới có vị trí kết thúc = vị trí bắt đầu + LOA; lượt đã lưu giữ nguyên chiều dài chiếm cầu khi sửa lịch; tàu được phép đi qua ranh giới cầu ảo.</p>
+        <p>Lượt tàu được lưu theo ngày bắt đầu đã chọn. Lượt mới là tàu vãng lai. Vị trí kết thúc = vị trí bắt đầu + LOA; lượt đã lưu giữ nguyên chiều dài chiếm cầu khi sửa lịch; tàu được phép đi qua ranh giới cầu ảo.</p>
         <div class="io-actions"><button class="btn btn-primary" id="saveCall">Lưu lượt tàu</button><button type="button" class="btn" id="closeCall">Hủy</button></div>
       </form>
 </dialog>

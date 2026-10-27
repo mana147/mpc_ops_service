@@ -1,7 +1,7 @@
 // Kích thước lấy từ cấu hình mỗi lần vẽ.
-let QUAY_LEN = 380;
+let QUAY_LEN = 0;
 // Khoảng cách an toàn tối thiểu giữa hai tàu (m).
-let SAFETY_GAP = 25;
+let SAFETY_GAP = 0;
 // Tỷ lệ trục ngang: pixel cho một giờ.
 let HOUR_PX = 9;
 // Tỷ lệ trục dọc: pixel cho một mét cầu bến.
@@ -10,72 +10,66 @@ let M_PX = 0.45;
 const HEAD_H = 46;
 // Khoảng đệm dưới cùng của SVG (pixel).
 const PAD_B = 16;
-// Chiều rộng biểu đồ của 7 ngày x 24 giờ.
-let CHART_W = 168 * HOUR_PX;
+// Chiều rộng biểu đồ theo số ngày được chọn.
+let CHART_W = 24 * HOUR_PX;
 // Chiều cao vùng cầu bến sau khi đổi mét sang pixel.
 let QUAY_H = QUAY_LEN * M_PX;
 // Tổng chiều cao SVG: nhãn + cầu bến + đệm.
 let SVG_H = HEAD_H + QUAY_H + PAD_B;
-// Chỉ số day trong JSON: 0 là Thứ 2, 6 là Chủ nhật.
+// Thứ dùng để ghi nhãn; day trên phép chiếu tính từ ngày bắt đầu khoảng chọn.
 const DAYS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
 // Chỉ hiển thị dữ liệu đã tải thành công từ API.
 let data = null;
 let QUAY_CONFIG;
 let dataSaving = false;
-// Số tuần lệch với hiện tại; chỉ đổi nhãn ngày, lịch mẫu lặp theo thứ/giờ.
-let weekOffset = 0;
+let displayRange = BerthDates.range(BerthDates.today(), BerthDates.today());
+let dataLoading = false;
 // ID lượt tàu đang chọn trên biểu đồ, bảng và khung chi tiết.
 let selected = null;
 // Thời điểm đang xem trên sơ đồ cầu bến 2D, độc lập với dữ liệu kế hoạch.
-const berth2dNow = new Date();
 const MINUTES_PER_DAY = 24 * 60;
-const BERTH_2D_WEEK_END = 7 * MINUTES_PER_DAY - 15;
 const BERTH_2D_TRANSITION_HOURS = 1;
 const BERTH_2D_PLAY_STEP_MINUTES = 3;
 const BERTH_2D_PLAY_TICK_MS = 100;
-let berth2dWeekMinute = ((berth2dNow.getDay() + 6) % 7) * MINUTES_PER_DAY
-	+ Math.floor((berth2dNow.getHours() * 60 + berth2dNow.getMinutes()) / 15) * 15;
+const currentClock = () => {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date()).reduce((out, p) => ({ ...out, [p.type]: p.value }), {});
+  return Number(parts.hour) * 60 + Number(parts.minute);
+};
+let berth2dWeekMinute = currentClock();
+const rangeEndMinute = () => displayRange.days * MINUTES_PER_DAY - 1;
 let berth2dTimer = null;
 
 // Lấy phần tử DOM bằng CSS selector.
 const $ = s => document.querySelector(s);
-// Quy đổi day + hour thành tổng giờ tính từ 00:00 Thứ 2.
+// Quy đổi day + hour thành tổng giờ tính từ 00:00 ngày bắt đầu khoảng chọn.
 const h = (d, hr) => d * 24 + hr;
 // Định dạng giờ trong ngày thành HH:mm.
-const fmtH = v => { const hh = Math.floor(v) % 24, mm = Math.round((v % 1) * 60); return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); };
+const fmtH = v => { const minutes = ((Math.round(v * 60) % 1440) + 1440) % 1440; return String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0'); };
 // Định dạng thứ + giờ, kể cả lượt tàu kéo dài sang ngày sau.
-const fmtDT = v => DAYS[Math.floor(v / 24) % 7].replace('Thứ ', 'T').replace('Chủ nhật', 'CN') + ' ' + fmtH(v);
+const fmtDT = v => BerthDates.label(dateOf(Math.floor(v / 24))) + ' ' + fmtH(v);
 // Escape văn bản từ JSON trước khi ghép vào innerHTML hoặc SVG.
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-/** Lấy ngày Thứ 2 của tuần đang xem theo múi giờ trình duyệt. */
-function baseMonday() {
-	const d = new Date();
-	const diff = (d.getDay() + 6) % 7;
-	d.setDate(d.getDate() - diff + weekOffset * 7);
-	d.setHours(0, 0, 0, 0);
-	return d;
-}
-/** Lấy Date của ngày thứ dayIdx trong tuần đang xem. */
-function dateOf(dayIdx) { const d = baseMonday(); d.setDate(d.getDate() + dayIdx); return d; }
-// Định dạng ngày/tháng trên thanh chuyển tuần và trục thời gian.
-const dm = d => String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0');
-// Khóa tuần gửi API luôn là ngày Thứ 2 dạng YYYY-MM-DD theo lịch của trình duyệt.
-const dateKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const weekApiUrl = () => `/api/berth-window?weekStart=${encodeURIComponent(dateKey(baseMonday()))}`;
+const dateOf = dayIdx => BerthDates.add(displayRange.start, dayIdx);
+const dm = value => BerthDates.label(value).slice(0, 5);
+const rangeApiUrl = range => `/api/berth-window/range?start=${range.start}&end=${range.end}`;
 function renderWeekRange() {
-	const start = dateOf(0), end = dateOf(6);
-	$('#range').textContent = dm(start) + ' - ' + dm(end) + '/' + end.getFullYear();
+	const { start, end, days } = displayRange;
+	$('#range').textContent = start === end ? BerthDates.label(start) : `${BerthDates.label(start)} – ${BerthDates.label(end)}`;
+	$('#range').title = `${days} ngày · Bấm để chọn khoảng thời gian`;
+	$('#prevw').setAttribute('aria-label', `Lùi ${days} ngày`);
+	$('#nextw').setAttribute('aria-label', `Tiến ${days} ngày`);
 }
 
 /** Điều chỉnh tỷ lệ biểu đồ cho desktop, điện thoại dọc và điện thoại xoay ngang. */
 function updateResponsiveScale() {
 	const compactLandscape = window.matchMedia('(orientation: landscape) and (max-height: 560px)').matches;
 	const mobile = window.matchMedia('(max-width: 720px)').matches;
-	HOUR_PX = compactLandscape ? 7 : (mobile ? 8 : 9);
+	HOUR_PX = Math.max(compactLandscape ? 7 : (mobile ? 8 : 9), $('#scroller').clientWidth / (displayRange.days * 24));
 	M_PX = compactLandscape ? 0.28 : (mobile ? 0.36 : 0.45);
-	CHART_W = 168 * HOUR_PX;
+	CHART_W = displayRange.days * 24 * HOUR_PX;
 	QUAY_H = QUAY_LEN * M_PX;
 	SVG_H = HEAD_H + QUAY_H + PAD_B;
 }
@@ -109,18 +103,18 @@ function enrich() {
 	return calls;
 }
 
-/** Tính KPI toàn tuần, không phụ thuộc bộ lọc tuyến đang chọn. */
+/** Tính KPI trong khoảng chọn, không phụ thuộc bộ lọc tuyến. */
 function metrics(calls) {
 	// mh là tổng mét·giờ; vùng chồng lấn vẫn cộng riêng cho từng tàu.
 	// conflicts đếm tàu có xung đột, không đếm số cặp xung đột.
 	let mh = 0, delaySum = 0, onWindow = 0, scheduled = 0, conflicts = 0;
 	calls.forEach(c => {
-		mh += c.dur * (c.to - c.from);
+		mh += Math.max(0, Math.min(c.end, displayRange.days * 24) - Math.max(c.start, 0)) * (c.to - c.from);
 		if (c.window) { scheduled++; if (c.status === 'ok') onWindow++; if (c.delta > 0) delaySum += c.delta; }
 		if (c.conflicts.length) conflicts++;
 	});
 	return {
-		util: mh / (168 * QUAY_LEN) * 100,
+		util: QUAY_LEN > 0 ? mh / (displayRange.days * 24 * QUAY_LEN) * 100 : 0,
 		calls: calls.length,
 		adherence: scheduled ? onWindow / scheduled * 100 : 0,
 		delay: delaySum,
@@ -130,6 +124,12 @@ function metrics(calls) {
 
 /** Vẽ trục mét và các phân đoạn bến trong SVG cố định bên trái. */
 function renderAxis() {
+	if (!QUAY_LEN) {
+		$('#axisSvg').replaceChildren();
+		$('#axisSvg').setAttribute('width', '74');
+		$('#axisSvg').setAttribute('height', '150');
+		return;
+	}
 	const s = ['<svg xmlns="http://www.w3.org/2000/svg" width="74" height="' + SVG_H + '">'];
 	s.push('<text x="66" y="18" text-anchor="end" font-size="11.5" fill="#6E7B85">Mét</text>');
 	for (const m of [...Array.from({ length: Math.ceil(QUAY_LEN / 100) }, (_, i) => i * 100), QUAY_LEN]) {
@@ -148,6 +148,10 @@ function renderAxis() {
 
 /** Vẽ lưới thời gian, khung triều, cửa sổ cam kết và lượt tàu vào SVG chính. */
 function renderChart(calls) {
+	if (!QUAY_LEN) {
+		$('#chartSvg').outerHTML = '<svg id="chartSvg" role="img" aria-label="Chưa cấu hình cầu bến" width="100%" height="150"><text x="10" y="75" font-size="13" fill="#6E7B85">Chưa cấu hình cầu bến.</text></svg>';
+		return;
+	}
 	// Checkbox chỉ điều khiển hiển thị; khung triều chưa được dùng để báo xung đột.
 	const showW = $('#showWindow').checked;
 	const showT = $('#showTide').checked;
@@ -162,11 +166,12 @@ function renderChart(calls) {
 		s.push(`<rect x="${x1}" y="${HEAD_H}" width="${x2 - x1}" height="${QUAY_H}" fill="#EAF1F4"/>`);
 	});
 
-	for (let d = 0; d < 7; d++) {
+	for (let d = 0; d < displayRange.days; d++) {
 		const x0 = x(d * 24);
+		const dayLabel = DAYS[BerthDates.weekday(dateOf(d))];
 		s.push(`<line x1="${x0}" y1="26" x2="${x0}" y2="${HEAD_H + QUAY_H}" stroke="#CFD3CE"/>`);
-		s.push(`<text x="${x0 + 8}" y="18" font-size="12.5" font-weight="600" fill="#16212B">${DAYS[d]}</text>`);
-		s.push(`<text x="${x0 + 8 + DAYS[d].length * 7.6}" y="18" font-size="11.5" font-family="IBM Plex Mono, monospace" fill="#6E7B85">${dm(dateOf(d))}</text>`);
+		s.push(`<text x="${x0 + 8}" y="18" font-size="12.5" font-weight="600" fill="#16212B">${dayLabel}</text>`);
+		s.push(`<text x="${x0 + 8 + dayLabel.length * 7.6}" y="18" font-size="11.5" font-family="IBM Plex Mono, monospace" fill="#6E7B85">${dm(dateOf(d))}</text>`);
 		for (let hr = 0; hr < 24; hr += 6) {
 			const xh = x(d * 24 + hr);
 			if (hr) s.push(`<line x1="${xh}" y1="30" x2="${xh}" y2="${HEAD_H + QUAY_H}" stroke="#E3E5E1"/>`);
@@ -181,7 +186,9 @@ function renderChart(calls) {
 	if (showW) calls.forEach(c => {
 		if (!c.window) return;
 		if (svc && c.service !== svc) return;
-		s.push(`<rect x="${x(c.wStart)}" y="${y(c.from)}" width="${x(c.wEnd) - x(c.wStart)}" height="${(c.to - c.from) * M_PX}" fill="none" stroke="#4E7FA3" stroke-width="1" stroke-dasharray="5 4" rx="2"/>`);
+		const start = Math.max(0, c.wStart), end = Math.min(displayRange.days * 24, c.wEnd);
+		if (end <= start) return;
+		s.push(`<rect x="${x(start)}" y="${y(c.from)}" width="${x(end) - x(start)}" height="${(c.to - c.from) * M_PX}" fill="none" stroke="#4E7FA3" stroke-width="1" stroke-dasharray="5 4" rx="2"/>`);
 	});
 
 	calls.forEach(c => {
@@ -192,7 +199,7 @@ function renderChart(calls) {
 		const fill = bad ? '#F5DED9' : (c.window ? '#DCE6EE' : '#F5E6C8');
 		const line = bad ? '#A63A2C' : (c.window ? '#4E7FA3' : '#B5791E');
 		const txt = bad ? '#7C2A1E' : (c.window ? '#26506E' : '#8C5D14');
-		const bx = x(c.start), bw = Math.max(6, x(c.end) - x(c.start));
+		const bx = x(Math.max(0, c.start)), bw = x(Math.min(displayRange.days * 24, c.end)) - bx;
 		const by = y(c.from), bh = (c.to - c.from) * M_PX;
 		const isSel = selected === c.id;
 		s.push(`<g class="callg" data-id="${esc(c.id)}" opacity="${dim ? 0.18 : 1}">`);
@@ -214,16 +221,29 @@ function renderChart(calls) {
 
 /** Đồng bộ thanh thời gian toàn tuần và nhãn thời điểm đang xem. */
 function renderBerth2dControls() {
+	berth2dWeekMinute = Math.max(0, Math.min(rangeEndMinute(), berth2dWeekMinute));
 	const day = Math.floor(berth2dWeekMinute / MINUTES_PER_DAY);
 	const minute = berth2dWeekMinute % MINUTES_PER_DAY;
 	const clock = `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+	$('#berth2dRange').max = rangeEndMinute();
 	$('#berth2dRange').value = berth2dWeekMinute;
-	$('#berth2dMoment').textContent = `${DAYS[day]} ${dm(dateOf(day))} · ${clock}`;
+	$('#berth2dMoment').textContent = `${DAYS[BerthDates.weekday(dateOf(day))]} ${BerthDates.label(dateOf(day))} · ${clock}`;
+	const step = Math.max(1, Math.ceil(displayRange.days / 7));
+	$('#berth2dDays').innerHTML = Array.from({ length: displayRange.days }, (_, i) => i)
+		.filter(i => i % step === 0 || i === displayRange.days - 1)
+		.map(i => `<span style="left:${i / Math.max(1, displayRange.days - 1) * 100}%">${dm(dateOf(i))}</span>`).join('');
 }
 
 /** Vẽ ảnh chụp 2D của cầu bến tại một thời điểm trong tuần. */
 function renderBerth2d(calls) {
 	renderBerth2dControls();
+	if (!QUAY_LEN) {
+		stopBerth2dPlayback();
+		$('#berth2dSvg').replaceChildren();
+		$('#berth2dSvg').setAttribute('height', '0');
+		$('#berth2dSummary').textContent = 'Chưa cấu hình cầu bến. Vui lòng nhập tuyến cầu trước.';
+		return;
+	}
 	const moment = berth2dWeekMinute / 60;
 	const visible = calls.map(call => ({ ...call, motion: BerthDomain.berthMotionAt(call, moment, BERTH_2D_TRANSITION_HOURS) }))
 		.filter(call => call.motion);
@@ -320,7 +340,7 @@ function renderBerth2d(calls) {
 function renderKpis(m) {
 	const tiles = [
 		{ v: m.util.toFixed(1) + '%', l: 'Khai thác mét·giờ cầu bến' },
-		{ v: m.calls, l: 'Lượt tàu trong tuần' },
+		{ v: m.calls, l: 'Lượt tàu trong khoảng chọn' },
 		{ v: m.adherence.toFixed(0) + '%', l: 'Cập đúng cửa sổ' },
 		{ v: m.delay.toFixed(1) + ' h', l: 'Tổng giờ cập trễ' },
 		{ v: m.conflicts, l: 'Lượt tàu có xung đột', warn: m.conflicts > 0 }
@@ -388,7 +408,10 @@ function draw() {
 	QUAY_CONFIG = BerthDomain.quay(data);
 	QUAY_LEN = QUAY_CONFIG.length;
 	SAFETY_GAP = QUAY_CONFIG.safetyGap;
-	$('#quaySummary').textContent = `Tuyến cầu 0–${QUAY_LEN} m · ${QUAY_CONFIG.physicalBerthCount ?? 'Chưa rõ số'} cầu thực tế · ${data.berths.length} đoạn ảo · khoảng an toàn ${SAFETY_GAP} m`;
+	$('#quaySummary').textContent = QUAY_LEN > 0
+		? `Tuyến cầu 0–${QUAY_LEN} m · ${QUAY_CONFIG.physicalBerthCount ?? 'Chưa rõ số'} cầu thực tế · ${data.berths.length} đoạn ảo · khoảng an toàn ${SAFETY_GAP} m`
+		: 'Chưa cấu hình cầu bến. Vui lòng nhập tuyến cầu để bắt đầu.';
+	$('#berth2dPlay').disabled = QUAY_LEN <= 0;
 	updateResponsiveScale();
 	const calls = enrich();
 	// Tạo lại danh sách tuyến từ dữ liệu mới nhưng giữ lựa chọn hiện tại nếu còn hợp lệ.
@@ -404,17 +427,11 @@ function draw() {
 	renderDetail(calls);
 }
 
-/** Chuyển tuần và tải snapshot riêng của đúng tuần đó. */
+/** Hai mũi tên dịch theo đúng độ dài khoảng đang xem. */
 async function changeWeek(delta) {
-	if (dataSaving) return;
-	stopBerth2dPlayback();
-	const previousOffset = weekOffset;
-	weekOffset += delta;
-	renderWeekRange();
-	if (!await loadData()) {
-		weekOffset = previousOffset;
-		draw();
-	}
+	if (dataSaving || dataLoading) return;
+	const shift = delta * displayRange.days;
+	await loadData(BerthDates.range(BerthDates.add(displayRange.start, shift), BerthDates.add(displayRange.end, shift)));
 }
 
 $('#prevw').onclick = () => changeWeek(-1);
@@ -456,8 +473,8 @@ $('#berth2dPlay').onclick = () => {
 	$('#berth2dPlay').textContent = 'Tạm dừng ❚❚';
 	$('#berth2dPlay').setAttribute('aria-pressed', 'true');
 	berth2dTimer = setInterval(() => {
-		if (berth2dWeekMinute >= BERTH_2D_WEEK_END) { stopBerth2dPlayback(); return; }
-		berth2dWeekMinute = Math.min(BERTH_2D_WEEK_END, berth2dWeekMinute + BERTH_2D_PLAY_STEP_MINUTES);
+		if (berth2dWeekMinute >= rangeEndMinute()) { stopBerth2dPlayback(); return; }
+		berth2dWeekMinute = Math.min(rangeEndMinute(), berth2dWeekMinute + BERTH_2D_PLAY_STEP_MINUTES);
 		if (data) renderBerth2d(enrich());
 	}, BERTH_2D_PLAY_TICK_MS);
 };
@@ -475,12 +492,13 @@ window.addEventListener('resize', () => {
 /** Gọi API và đưa người dùng về trang đăng nhập nếu phiên đã hết hạn. */
 async function apiFetch(url, options = {}) {
 	const mutation = options.method && options.method !== 'GET';
-	if (mutation && dataSaving) throw new Error('Đang lưu dữ liệu, vui lòng chờ.');
+	if (mutation && (dataSaving || dataLoading)) throw new Error('Đang tải hoặc lưu dữ liệu, vui lòng chờ.');
 	if (mutation) {
 		dataSaving = true;
 		$('#inputControls').inert = true;
 		$('#callForm').inert = true;
 		$('#callListPanel').inert = true;
+		document.querySelector('.admin-weeknav').inert = true;
 	}
 	try {
 		const response = await fetch(url, {
@@ -500,26 +518,41 @@ async function apiFetch(url, options = {}) {
 			$('#inputControls').inert = !data;
 			$('#callForm').inert = false;
 			$('#callListPanel').inert = false;
+			document.querySelector('.admin-weeknav').inert = false;
 		}
 	}
 }
 
-/** Lấy snapshot của tuần đang chọn trong SQLite. */
-async function loadData() {
-	const navigationButtons = [$('#prevw'), $('#nextw')];
+/** Chỉ đổi khoảng và dữ liệu trên màn hình sau khi tải thành công. */
+async function loadData(nextRange = displayRange) {
+	if (dataLoading || dataSaving) return false;
+	dataLoading = true;
+	stopBerth2dPlayback();
+	const navigationButtons = [$('#prevw'), $('#nextw'), $('#range'), $('#applyDateRange')];
 	navigationButtons.forEach(button => { button.disabled = true; });
+	$('#inputControls').inert = true;
+	$('#callListPanel').inert = true;
 	try {
-		const record = await apiFetch(weekApiUrl());
+		const record = await apiFetch(rangeApiUrl(nextRange));
+		displayRange = nextRange;
+		const today = BerthDates.today();
+		berth2dWeekMinute = today >= nextRange.start && today <= nextRange.end
+			? BerthDates.diff(nextRange.start, today) * MINUTES_PER_DAY + currentClock() : 0;
 		data = record.data;
 		selected = null;
 		renderInputs();
-		inputMessage(`Đã tải dữ liệu tuần ${record.weekStart}.`);
+		inputMessage(`Đang xem ${BerthDates.label(nextRange.start)} → ${BerthDates.label(nextRange.end)} (${nextRange.days} ngày).`);
 		draw();
+		$('#scroller').scrollLeft = 0;
 		return true;
 	} catch (e) {
-		inputMessage(`Chưa tải được dữ liệu tuần: ${e.message}`, true);
+		inputMessage(`Chưa tải được khoảng ngày: ${e.message}`, true);
+		$('#dateRangeMessage').textContent = e.message;
 		return false;
 	} finally {
+		dataLoading = false;
+		$('#inputControls').inert = !data;
+		$('#callListPanel').inert = false;
 		navigationButtons.forEach(button => { button.disabled = false; });
 	}
 }
@@ -554,7 +587,7 @@ function renderInputs() {
   field(form, 'terminal').value = data.terminal;
   for (const [name, value] of Object.entries(q)) {
     const input = field(form, name);
-    if (input) input.value = value ?? '';
+    if (input) input.value = name === 'length' && !q.length ? '' : (value ?? '');
   }
   $('#sectionRows').replaceChildren();
   data.berths.forEach(sectionRow);
@@ -569,12 +602,12 @@ function renderInputs() {
     + data.calls.filter(c => !c.vesselId).map(c => `<option value="snapshot:${esc(c.id)}">${esc(c.vessel)} · ${c.loa} m (lượt ${esc(c.id)})</option>`).join('');
   field(callForm, 'section').innerHTML = '<option value="">Chọn đoạn gợi ý</option>' + data.berths.map((b, i) => `<option value="${i}">${esc(b.code)} (${b.from}–${b.to} m)</option>`).join('');
   $('#inputControls').inert = false;
-  $('#addCall').disabled = false;
+  $('#addCall').disabled = q.length <= 0;
   updateCallPreview();
 }
 async function saveCandidate(candidate) {
   try {
-    const record = await apiFetch(weekApiUrl(), { method: 'PUT', body: JSON.stringify(candidate) });
+    const record = await apiFetch(rangeApiUrl(displayRange), { method: 'PUT', body: JSON.stringify(candidate) });
     data = record.data;
     selected = null;
     renderInputs();
@@ -663,8 +696,12 @@ function showCallDialog(title) {
   if (!$('#callDialog').open) $('#callDialog').showModal();
 }
 $('#addCall').onclick = () => {
-  if (!data || dataSaving) return;
+  if (!data || dataSaving || dataLoading) return;
   $('#callForm').reset();
+  const dateInput = field($('#callForm'), 'date');
+  dateInput.min = displayRange.start;
+  dateInput.max = displayRange.end;
+  dateInput.value = displayRange.start;
   showCallDialog('Thêm lượt tàu');
   if (field($('#callForm'), 'vesselId').options.length === 1) {
     $('#callFormMsg').textContent = 'Chưa có tàu trong danh mục. Hãy đóng form và thêm tàu tại mục Danh mục tàu trước.';
@@ -689,7 +726,10 @@ function editCall(id) {
   const choices = field(form, 'vesselId');
   for (const name of ['id', 'voyage', 'service', 'line', 'dur', 'from', 'draft', 'cranes', 'moves']) field(form, name).value = c[name] ?? '';
   choices.value = c.vesselId || `snapshot:${c.id}`;
-  field(form, 'day').value = c.ata.day;
+  const dateInput = field(form, 'date');
+  dateInput.value = dateOf(c.ata.day);
+  dateInput.min = dateInput.value < displayRange.start ? dateInput.value : displayRange.start;
+  dateInput.max = displayRange.end;
   field(form, 'hour').value = callTimeValue(c.ata.hour);
   showCallDialog(`Sửa lượt tàu · ${c.vessel}`);
 }
@@ -708,7 +748,7 @@ $('#callForm').onsubmit = async event => {
     loa: dimensions.loa, dwt: dimensions.dwt ?? null, imo: dimensions.imo || '',
     voyage: field(form, 'voyage').value.trim(), service: field(form, 'service').value.trim() || null,
     line: field(form, 'line').value.trim(), window: existing?.window || null, tol: existing?.tol || 0,
-    ata: { day: numberValue(form, 'day'), hour }, dur: numberValue(form, 'dur'),
+    ata: { day: BerthDates.diff(displayRange.start, field(form, 'date').value), hour }, dur: numberValue(form, 'dur'),
     from, to: Math.round((from + occupiedLength(selection)) * 1000000) / 1000000,
     draft: numberValue(form, 'draft'), cranes: numberValue(form, 'cranes'), moves: numberValue(form, 'moves') };
   if (!sameVessel) {
@@ -722,11 +762,111 @@ $('#callForm').onsubmit = async event => {
     $('#callDialog').close();
     // Lượt vừa lưu cần nhìn thấy kể cả khi bộ lọc trước đó đang chọn tuyến khác.
     $('#filterSvc').value = '';
-    selected = id;
+    const storedId = existing ? id.slice(11) : id;
+    selected = data.calls.find(c => c.id === `${BerthDates.monday(dateOf(call.ata.day))}:${storedId}`)?.id || null;
     draw();
     inputMessage(existing ? `Đã cập nhật lượt tàu ${call.vessel}.` : `Đã thêm lượt tàu ${call.vessel}.`);
   }
 };
 
-// Khởi tạo từ dữ liệu SQLite khi trang quản trị sẵn sàng.
+// Lịch chọn khoảng ngày. Draft chỉ áp dụng sau khi người dùng bấm Áp dụng và tải thành công.
+let calendarStart = displayRange.start;
+let calendarEnd = displayRange.end;
+let calendarMonth = displayRange.start.slice(0, 7);
+let pickingEnd = false;
+
+function renderCalendar() {
+  $('#rangeStart').value = calendarStart;
+  $('#rangeEnd').value = calendarEnd;
+  $('#calendarMonth').value = calendarMonth;
+  const gridStart = BerthDates.monday(`${calendarMonth}-01`);
+  const today = BerthDates.today();
+  $('#calendarDays').innerHTML = Array.from({ length: 42 }, (_, i) => {
+    const date = BerthDates.add(gridStart, i);
+    const edge = date === calendarStart || date === calendarEnd;
+    const inside = date >= calendarStart && date <= calendarEnd;
+    return `<button type="button" class="calendar-day${date.slice(0, 7) !== calendarMonth ? ' other-month' : ''}${inside ? ' in-range' : ''}${edge ? ' range-edge' : ''}${date === today ? ' is-today' : ''}" data-date="${date}" aria-label="${BerthDates.label(date)}${date === today ? ', hôm nay' : ''}" aria-pressed="${inside}"${date === today ? ' aria-current="date"' : ''}>${Number(date.slice(8))}</button>`;
+  }).join('');
+  try {
+    const range = BerthDates.range(calendarStart, calendarEnd);
+    $('#dateRangeMessage').textContent = `${range.days} ngày${pickingEnd ? ' · Chọn ngày kết thúc (có thể cùng ngày bắt đầu).' : ''}`;
+    $('#dateRangeMessage').classList.remove('err');
+    $('#applyDateRange').disabled = dataLoading;
+  } catch (error) {
+    $('#dateRangeMessage').textContent = error.message;
+    $('#dateRangeMessage').classList.add('err');
+    $('#applyDateRange').disabled = true;
+  }
+}
+$('#range').onclick = () => {
+  if (dataSaving || dataLoading) return;
+  calendarStart = displayRange.start;
+  calendarEnd = displayRange.end;
+  calendarMonth = calendarStart.slice(0, 7);
+  pickingEnd = false;
+  renderCalendar();
+  $('#dateRangeDialog').showModal();
+};
+$('#closeDateRange').onclick = () => { if (!dataLoading) $('#dateRangeDialog').close(); };
+$('#dateRangeDialog').addEventListener('cancel', event => { if (dataLoading) event.preventDefault(); });
+$('#calendarDays').onclick = event => {
+  const button = event.target.closest('[data-date]');
+  if (!button || dataLoading) return;
+  const date = button.dataset.date;
+  if (!pickingEnd) { calendarStart = date; calendarEnd = date; pickingEnd = true; }
+  else {
+    calendarEnd = date;
+    if (calendarEnd < calendarStart) [calendarStart, calendarEnd] = [calendarEnd, calendarStart];
+    pickingEnd = false;
+  }
+  renderCalendar();
+  $('#calendarDays').querySelector(`[data-date="${date}"]`)?.focus();
+};
+for (const [id, delta] of [['calendarPrev', -1], ['calendarNext', 1]]) {
+  $('#' + id).onclick = () => {
+    const date = BerthDates.parse(`${calendarMonth}-01`);
+    date.setUTCMonth(date.getUTCMonth() + delta);
+    calendarMonth = BerthDates.key(date).slice(0, 7);
+    renderCalendar();
+  };
+}
+$('#calendarMonth').onchange = event => {
+  if (!event.target.value) return;
+  try { BerthDates.parse(`${event.target.value}-01`); }
+  catch { return; }
+  calendarMonth = event.target.value;
+  renderCalendar();
+};
+for (const id of ['rangeStart', 'rangeEnd']) $('#' + id).onchange = () => {
+  calendarStart = $('#rangeStart').value;
+  calendarEnd = $('#rangeEnd').value;
+  if (calendarStart) calendarMonth = calendarStart.slice(0, 7);
+  pickingEnd = false;
+  renderCalendar();
+};
+$('#rangeToday').onclick = () => {
+  calendarStart = calendarEnd = BerthDates.today();
+  calendarMonth = calendarStart.slice(0, 7);
+  pickingEnd = false;
+  renderCalendar();
+};
+$('#rangeThisWeek').onclick = () => {
+  calendarStart = BerthDates.monday(BerthDates.today());
+  calendarEnd = BerthDates.add(calendarStart, 6);
+  calendarMonth = calendarStart.slice(0, 7);
+  pickingEnd = false;
+  renderCalendar();
+};
+$('#dateRangeForm').onsubmit = async event => {
+  event.preventDefault();
+  let nextRange;
+  try { nextRange = BerthDates.range($('#rangeStart').value, $('#rangeEnd').value); }
+  catch (error) { $('#dateRangeMessage').textContent = error.message; return; }
+  $('#dateRangeForm').inert = true;
+  try { if (await loadData(nextRange)) $('#dateRangeDialog').close(); }
+  finally { $('#dateRangeForm').inert = false; }
+};
+
+// Khởi tạo ở ngày hiện tại theo giờ Việt Nam.
+renderWeekRange();
 loadData().then(() => { $('#scroller').scrollLeft = 0; });

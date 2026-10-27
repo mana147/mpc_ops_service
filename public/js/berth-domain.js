@@ -4,7 +4,8 @@
   const domain = {
     quay(data) {
       return data.quay || {
-        length: Math.max(...data.berths.map(b => b.to)), safetyGap: 25,
+        length: Math.max(0, ...(data.berths || []).map(b => b.to)),
+        safetyGap: data.berths?.length ? 25 : null,
         physicalBerthCount: null, depth: null, depthDatum: '', turningBasin: null,
         turningBasinMeasurement: 'unconfirmed', maxLoa: null, maxDwt: null, capacitySource: ''
       };

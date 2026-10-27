@@ -1,0 +1,23 @@
+<dialog id="dateRangeDialog" class="date-range-dialog" aria-labelledby="dateRangeTitle">
+  <form id="dateRangeForm">
+    <div class="panel-head"><h2 id="dateRangeTitle">Chọn khoảng thời gian</h2><button class="btn" id="closeDateRange" type="button" aria-label="Đóng lịch">✕</button></div>
+    <div class="date-range-body">
+      <p class="date-range-hint">Chọn ngày bắt đầu, sau đó chọn ngày kết thúc. Từ 1 đến 30 ngày, tính cả hai ngày.</p>
+      <div class="date-range-fields">
+        <label>Từ ngày<input id="rangeStart" name="start" type="date" required></label>
+        <label>Đến ngày<input id="rangeEnd" name="end" type="date" required></label>
+      </div>
+      <div class="date-range-calendar">
+      <div class="calendar-heading">
+        <button class="btn" id="calendarPrev" type="button" aria-label="Tháng trước">←</button>
+        <label><span class="sr-only">Tháng đang xem</span><input id="calendarMonth" type="month" aria-label="Tháng đang xem"></label>
+        <button class="btn" id="calendarNext" type="button" aria-label="Tháng sau">→</button>
+      </div>
+      <div class="calendar-weekdays" aria-hidden="true"><span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span></div>
+      <div id="calendarDays" class="calendar-days" role="group" aria-label="Các ngày trong tháng"></div>
+      </div>
+      <p id="dateRangeMessage" class="date-range-message" role="status" aria-live="polite"></p>
+      <div class="date-range-actions"><button type="button" class="btn" id="rangeToday">Hôm nay</button><button type="button" class="btn" id="rangeThisWeek">Tuần này</button><button type="submit" class="btn btn-primary" id="applyDateRange">Áp dụng</button></div>
+    </div>
+  </form>
+</dialog>

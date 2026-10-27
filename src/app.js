@@ -25,7 +25,7 @@ function createApp(options = {}) {
     secureCookie: options.secureCookie ?? process.env.NODE_ENV === 'production',
     demoYear: Object.hasOwn(options, 'demoYear')
       ? options.demoYear
-      : Number(process.env.BERTH_DEMO_YEAR || 2026)
+      : (process.env.BERTH_DEMO_YEAR?.trim() ? Number(process.env.BERTH_DEMO_YEAR) : null)
   };
   if (process.env.NODE_ENV === 'production' && !options.sessionSecret && !process.env.SESSION_SECRET) {
     throw new Error('SESSION_SECRET là bắt buộc khi chạy production.');

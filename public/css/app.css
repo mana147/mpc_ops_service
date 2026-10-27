@@ -42,6 +42,7 @@ body { font-family: "IBM Plex Sans", system-ui, sans-serif; }
 .admin-weeknav button:hover { border-color: var(--app-steel); background: #f5f7f8; }
 .admin-weeknav button:disabled { opacity: .55; cursor: wait; }
 .admin-weeknav .range { min-width: 174px; color: var(--app-ink); font-family: ui-monospace, monospace; font-size: 12px; text-align: center; }
+.admin-weeknav button.range { border-color: transparent; padding: 6px 8px; text-decoration: underline dotted; text-underline-offset: 4px; }
 .admin-user-menu { margin-left: auto; display: flex; align-items: center; gap: 9px; padding-left: 20px; border-left: 1px solid #e1e4e1; color: #4d5a64; font-size: 12.5px; }
 .admin-weeknav + .admin-user-menu { margin-left: 0; }
 .admin-avatar { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--app-steel-soft); color: var(--app-steel); font-size: 11px; font-weight: 700; }

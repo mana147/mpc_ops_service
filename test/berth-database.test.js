@@ -167,14 +167,19 @@ test('CLI tạo file SQLite, backup khi chạy lại và không tạo file cho n
   const invalid = run(['--week-start', '2026-10-25']);
   assert.equal(invalid.status, 1);
   assert.equal(fs.existsSync(filename), false);
-  const created = run(['--week-start', '2026-10-19']);
+  const created = run(['--schema-only']);
   assert.equal(created.status, 0, created.stderr);
-  assert.match(created.stdout, /"imported": true/);
+  const configured = new Database(filename);
+  configured.prepare('UPDATE berth_window_datasets SET json_data = ?').run(JSON.stringify(require('./fixtures/configuredBerthData.json')));
+  configured.close();
+  const imported = run(['--week-start', '2026-10-19']);
+  assert.equal(imported.status, 0, imported.stderr);
+  assert.match(imported.stdout, /"imported": true/);
   const repeated = run(['--week-start', '2026-10-19']);
   assert.equal(repeated.status, 0, repeated.stderr);
   assert.match(repeated.stdout, /"imported": false/);
   const backupFiles = fs.readdirSync(path.join(directory, 'backups'));
-  assert.equal(backupFiles.length, 1);
+  assert.equal(backupFiles.length, 2);
   for (const file of [filename, path.join(directory, 'backups', backupFiles[0])]) {
     const db = new Database(file, { readonly: true });
     try {
@@ -188,7 +193,7 @@ test('CLI tạo file SQLite, backup khi chạy lại và không tạo file cho n
 });
 
 test('import cấu hình mới giữ chiều dài toàn tuyến, khoảng an toàn và archive DWT', t => {
-  const data = structuredClone(require('../src/data/seedBerthData'));
+  const data = structuredClone(require('./fixtures/configuredBerthData.json'));
   data.quay.safetyGap = 30;
   data.berths = [{ code: 'V1', from: 0, to: 120 }];
   data.vessels = [{ id: 'V1', name: 'Tàu danh mục chưa có lượt', loa: 120, dwt: 10000 }];

@@ -34,6 +34,7 @@ function importLegacyBerthData(db, { weekStart }) {
     }
 
     const data = validateBerthData(JSON.parse(source.json_data));
+    if (data.quay === null) throw new Error('Cần cấu hình cầu bến trước khi import kế hoạch.');
     for (const call of data.calls) {
       if (!Number.isInteger(call.moves) || call.loa <= 0) {
         throw new Error(`Call ${call.id}: moves phải là số nguyên và LOA phải lớn hơn 0.`);

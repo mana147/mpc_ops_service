@@ -24,6 +24,7 @@ function currentWeekStart(now = new Date()) {
 
 class BerthWindow {
   constructor(db) {
+    this.transaction = work => db.transaction(work)();
     this.getWeekStatement = db.prepare(`
       SELECT week_start, json_data, updated_at, updated_by
       FROM berth_window_week_datasets
@@ -75,6 +76,12 @@ class BerthWindow {
       updatedAt: row.updated_at,
       updatedBy: row.updated_by
     };
+  }
+
+  find(weekStart) {
+    validateWeekStart(weekStart);
+    const row = this.getWeekStatement.get(weekStart);
+    return row ? { weekStart, data: JSON.parse(row.json_data) } : null;
   }
 
   update(weekStart, data, userId) {

@@ -12,9 +12,10 @@ Trạng thái hiện tại:
 - Berth Window đọc/ghi JSON snapshot riêng theo từng tuần trong SQLite qua API có bảo vệ đăng nhập.
 - Đã có schema SQLite chuẩn hóa 11 bảng và CLI `npm run db:migrate` để import snapshot thành kế hoạch nháp theo tuần. API hiện tại chưa chuyển sang các bảng mới; xem mục 13.
 - Frontend tự tính xung đột, KPI và vẽ SVG; backend hiện chỉ validate cấu trúc trước khi lưu.
-- Berth Window có hai chế độ dùng chung dataset: biểu đồ không gian–thời gian toàn tuần và sơ đồ cầu bến 2D tại một thời điểm do người dùng chọn.
-- Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Seed nền là tuyến 380 m, 02 cầu thực tế và một đoạn ảo V1.
-- Có dữ liệu demo theo tuần phủ tháng 01–12/2026: 08 tàu giả lập và 3–5 lượt tàu mỗi tuần. Tên/ID đều có dấu hiệu `DEMO`, không phải dữ liệu khai thác thật.
+- Berth Window có hai chế độ dùng chung dataset: biểu đồ không gian–thời gian trong khoảng ngày chọn và sơ đồ cầu bến 2D tại một thời điểm do người dùng chọn.
+- Bấm nhãn thời gian trên topbar để mở lịch chọn từ 1 đến 30 ngày (tính cả hai đầu); mặc định là hôm nay theo giờ Việt Nam. Biểu đồ, danh sách, KPI và sơ đồ 2D cùng dùng khoảng được chọn, có thể đi qua nhiều tuần/tháng/năm.
+- Có form cấu hình tuyến cầu/cầu ảo, danh mục tàu và thêm/sửa/xóa lượt tàu. Mặc định chưa có tên tuyến, thông số cầu bến hoặc đoạn cầu ảo; người dùng tự nhập cấu hình từ đầu.
+- Mặc định không tạo dữ liệu demo: cấu hình cầu bến, danh mục tàu, lượt tàu và khung triều đều trống để người dùng nhập tay chạy thử nghiệm. Giao diện hiển thị “Chưa cấu hình cầu bến” và chỉ cho thêm lượt tàu sau khi lưu tuyến cầu hợp lệ.
 - Có chế độ toàn màn hình chỉ hiển thị tool, cùng layout riêng cho điện thoại dọc/ngang.
 - Test tích hợp dùng `node:test` + Supertest + SQLite in-memory.
 
@@ -72,6 +73,7 @@ SQLite session + redirect /admin
 │   │   └── berth-window.css        # Thành phần riêng của tool và responsive mobile
 │   └── js/
 │       ├── berth-domain.js         # Cấu hình tương thích snapshot cũ và cảnh báo năng lực
+│       ├── berth-dates.js          # Ngày lịch, múi giờ Việt Nam và giới hạn 1–30 ngày dùng chung Node/browser
 │       └── berth-window.js         # Render biểu đồ tuần, sơ đồ cầu bến 2D, KPI và conflict
 ├── src/
 │   ├── config/
@@ -82,7 +84,7 @@ SQLite session + redirect /admin
 │   │   ├── authController.js       # Login/logout và tạo/hủy session
 │   │   └── berthWindowApiController.js # GET/PUT/reset dữ liệu tool
 │   ├── data/
-│   │   └── seedBerthData.js        # Dữ liệu mẫu canonical phía server
+│   │   └── seedBerthData.js        # Snapshot trống khi khởi tạo/reset
 │   ├── middleware/
 │   │   └── auth.js                 # requireAuth + redirectIfAuthenticated
 │   ├── models/
@@ -94,7 +96,8 @@ SQLite session + redirect /admin
 │   │   └── apiRoutes.js            # /api/berth-window...
 │   ├── services/
 │   │   ├── SQLiteSessionStore.js   # express-session store tự viết
-│   │   └── berthDataValidator.js   # Validate payload trước khi ghi DB
+│   │   ├── berthDataValidator.js   # Validate payload trước khi ghi DB
+│   │   └── berthRange.js           # Ghép khoảng ngày, ghi ngược về snapshot tuần trong transaction
 │   ├── views/
 │   │   ├── admin/                  # dashboard.ejs, berth-window.ejs
 │   │   ├── auth/login.ejs
@@ -158,7 +161,15 @@ Lưu ý seed:
 
 ## 6. Dữ liệu Berth Window
 
-Payload tối thiểu:
+Payload khởi tạo/reset khi chưa cấu hình:
+
+```json
+{ "terminal": "", "quay": null, "berths": [], "vessels": [], "tideWindows": [], "calls": [] }
+```
+
+Trạng thái này vẫn cho phép nhập danh mục tàu, nhưng không cho lập lượt tàu hoặc khung triều. Sau khi nhập tuyến cầu, `berths` có thể để trống nếu chưa cần chia đoạn cầu ảo. Snapshot legacy thiếu `quay` vẫn cần có `berths` để suy ra chiều dài.
+
+Ví dụ payload đã được người dùng cấu hình (các giá trị dưới đây chỉ minh họa, không được tự điền khi khởi tạo):
 
 ```json
 {
@@ -218,6 +229,15 @@ Logic frontend đáng chú ý:
 - Lần đầu mở hệ thống, snapshot legacy được gắn cho tuần hiện tại. Tuần chưa có dữ liệu kế thừa cấu hình tuyến/danh mục nhưng bắt đầu với `calls` và `tideWindows` trống.
 - Endpoint reset gọi server để lấy lại `seedBerthData.js` cho tuần được chọn.
 
+### Khoảng ngày tùy chọn
+
+- Nhãn ngày là nút mở calendar, hỗ trợ chọn hai ngày trên lưới hoặc nhập ngày trực tiếp; có nút **Hôm nay**, **Tuần này**, chuyển tháng và chọn tháng/năm. `01/10 → 01/10` là 1 ngày; `01/10 → 30/10` là 30 ngày; `01/10 → 31/10` bị từ chối.
+- Trang mới mở luôn xem hôm nay (Asia/Ho_Chi_Minh); sơ đồ 2D bắt đầu tại giờ hiện tại nếu hôm nay nằm trong khoảng chọn. Hai mũi tên dịch khoảng theo đúng số ngày đang xem, ví dụ khoảng 7 ngày dịch 7 ngày.
+- `/api/berth-window/range?start=YYYY-MM-DD&end=YYYY-MM-DD` ghép các snapshot tuần, đưa `day` về tọa độ tương đối từ ngày bắt đầu khoảng. Lượt tàu bắt đầu trước khoảng nhưng chưa kết thúc vẫn xuất hiện; mét·giờ chỉ tính phần giao với khoảng chọn. ID lượt trong phép chiếu có tiền tố tuần để tránh trùng giữa các tuần.
+- PUT vào API khoảng ngày chuyển lượt về tuần chứa ngày bắt đầu thực của nó. Sửa/xóa chỉ tác động lượt trong phép chiếu; lịch và khung triều ngoài khoảng được giữ lại. Tất cả tuần thay đổi được validate rồi ghi trong một transaction. API tuần cũ tiếp tục hoạt động; không đổi schema lưu trữ và không chạy migration.
+- Cấu hình tuyến hiển thị lấy từ tuần chứa ngày bắt đầu. Khi sửa cấu hình, các trường thay đổi được áp dụng cho mọi tuần giao với khoảng chọn; toàn bộ lịch từng tuần đều được kiểm tra, kể cả lượt ngoài khoảng. Danh mục giống nhau được gộp để chọn tàu; mục mới thuộc tuần đầu khoảng và được chép sang tuần đích khi tạo lượt liên kết. Sửa danh mục cập nhật những tuần chứa mục đó, giữ thông số các lượt đã lập.
+- Không thay khoảng đang hiển thị nếu tải thất bại; khóa thao tác đổi khoảng trong lúc tải/lưu. Form lượt tàu chọn ngày lịch cụ thể thay cho danh sách thứ trong tuần.
+
 ## 7. Route và API
 
 ### Web routes
@@ -236,6 +256,8 @@ Logic frontend đáng chú ý:
 
 | Method | Route | Kết quả |
 |---|---|---|
+| `GET` | `/api/berth-window/range?start=YYYY-MM-DD&end=YYYY-MM-DD` | Ghép dữ liệu giao với khoảng 1–30 ngày, trả `{ start, end, days, data }` |
+| `PUT` | `/api/berth-window/range?start=YYYY-MM-DD&end=YYYY-MM-DD` | Lưu phép chiếu về các snapshot tuần, giữ lịch ngoài khoảng và rollback toàn bộ nếu có lỗi |
 | `GET` | `/api/berth-window?weekStart=YYYY-MM-DD` | Đọc snapshot của tuần, trả `{ weekStart, data, updatedAt, updatedBy }` |
 | `PUT` | `/api/berth-window?weekStart=YYYY-MM-DD` | Validate và ghi snapshot của đúng tuần |
 | `POST` | `/api/berth-window/reset?weekStart=YYYY-MM-DD` | Ghi lại seed server cho đúng tuần |
@@ -299,10 +321,10 @@ SESSION_SECRET=replace-with-a-long-random-string
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=Mpc@123
 DATABASE_PATH=./data/mpc_ops.sqlite
-BERTH_DEMO_YEAR=2026
+BERTH_DEMO_YEAR=
 ```
 
-`BERTH_DEMO_YEAR` mặc định là `2026`. Khi khởi động, ứng dụng tạo 53 snapshot tuần bao phủ các tuần có ngày thuộc năm 2026. Tuần chưa tồn tại được tạo mới; tuần đã tồn tại chỉ được bổ sung danh mục tàu hoặc danh sách lượt tàu khi mảng tương ứng đang trống. Cấu hình tuyến và dữ liệu không rỗng của người dùng được giữ nguyên. Có thể truyền `demoYear: null` khi tạo app trong kiểm thử để tắt seed demo.
+`BERTH_DEMO_YEAR` mặc định để trống: khởi động không tạo hoặc bổ sung dữ liệu demo, kể cả sau khi người dùng đã xóa hết danh mục/lượt tàu. Chỉ đặt `BERTH_DEMO_YEAR=2026` khi chủ động muốn tạo lại dữ liệu demo (53 tuần, 08 tàu giả lập, 3–5 lượt/tuần). Chế độ demo bổ sung các mảng danh mục/lượt tàu đang trống; cần để trống biến này khi nhập tay thử nghiệm. Thay đổi biến không tự xóa dữ liệu đã lưu. Trong code, `createDatabase()` cũng mặc định không seed demo; có thể truyền `demoYear: 2026` để bật hoặc `demoYear: null` để tắt khi tạo app/database.
 
 Tài khoản mặc định chỉ dành cho local: `admin / Mpc@123`. Trước khi chạy lần đầu ở môi trường thật, phải thay `SESSION_SECRET` và `ADMIN_PASSWORD`. Production sẽ từ chối khởi động nếu không có `SESSION_SECRET`.
 
@@ -335,10 +357,13 @@ Sau mọi thay đổi backend/frontend liên quan tool, chạy:
 ```bash
 npm test
 node --check public/js/berth-window.js
+node --check public/js/berth-dates.js
 git diff --check
 ```
 
 Test hiện chưa chạy trình duyệt thật, chưa kiểm tra pixel/layout và chưa mô phỏng Fullscreen API. Với thay đổi responsive, cần kiểm tra thủ công tối thiểu ở khoảng `390×844`, `844×390` và desktop.
+
+`test/berth-range.test.js` kiểm tra giới hạn 1/30/31 ngày, lịch qua năm/năm nhuận, múi giờ Việt Nam, xác thực API, lượt kéo qua đầu khoảng, ID trùng giữa các tuần, ghi đúng tuần, giữ lịch ngoài khoảng và rollback khi một tuần không hợp lệ.
 
 ## 12. Giới hạn hiện tại và hướng mở rộng
 
@@ -370,8 +395,8 @@ npm run db:migrate -- --week-start 2026-10-19
 # Chỉ tạo schema, không import JSON.
 npm run db:migrate -- --schema-only
 
-# Tạo một DB local riêng; DB mới được seed tài khoản/dataset như ứng dụng.
-npm run db:migrate -- --database ./data/berth_demo.sqlite --week-start 2026-10-19
+# Tạo một DB local riêng với schema và snapshot trống.
+npm run db:migrate -- --database ./data/berth_demo.sqlite --schema-only
 ```
 
 Mặc định dùng `DATABASE_PATH` từ `.env`, nếu thiếu thì dùng `data/mpc_ops.sqlite`. DB có sẵn được backup vào thư mục `backups/` cạnh file DB bằng SQLite backup API (bao gồm WAL). Schema và import chạy trong một transaction. Chạy lại cùng nguồn/tuần sẽ không tạo dữ liệu trùng; nguồn đã thay đổi hoặc tuần khác sẽ bị từ chối để tránh ghi đè lịch sử.
@@ -390,14 +415,14 @@ CLI dùng `quay.length` và `quay.safetyGap` khi snapshot có cấu hình mới.
 
 Mở **Cấu hình và nhập dữ liệu** trên trang Berth Window:
 
-1. **Tuyến cầu và các đoạn cầu ảo:** nhập chiều dài, số cầu thực tế và thông số cảng; thêm/sửa/xóa đoạn bằng tọa độ. Không cần dựng ranh giới giả cho 02 cầu thực tế. Cầu ảo có thể để khoảng trống nhưng không chồng nhau, không làm tăng chiều dài tuyến.
+1. **Tuyến cầu và các đoạn cầu ảo:** nhập tên tuyến, chiều dài, số cầu thực tế, khoảng cách an toàn và các thông số cảng nếu có; thêm/sửa/xóa đoạn bằng tọa độ. Không cần dựng ranh giới giả cho các cầu thực tế. Cầu ảo có thể để trống nhưng không chồng nhau, không làm tăng chiều dài tuyến.
 2. **Danh mục tàu:** nhập tên và LOA; IMO (7 chữ số, duy nhất) và DWT có thể để trống. ID được tạo tự động. Sửa danh mục không sửa thông số các lượt đã lập.
 3. **Danh sách lượt tàu:** bấm **Thêm lượt tàu** ngay trên bảng để mở form; từng dòng có **Xem / Sửa / Xóa**, xóa cần xác nhận. Form thêm/sửa nằm trong hộp thoại, đóng bằng Hủy hoặc Esc.
 
    **Thêm / sửa lượt tàu:** chọn tàu từ danh mục hoặc dùng thông số từ lượt legacy đang có, số chuyến, tuyến/hãng tàu, thời gian bắt đầu, số giờ chiếm cầu, vị trí và mớn nước lượt tàu, số cẩu/sản lượng. Chọn cầu ảo chỉ gợi ý vị trí bắt đầu; kết thúc = bắt đầu + LOA. Lượt có thể đi qua nhiều đoạn ảo. Có thể sửa trực tiếp lượt legacy chưa liên kết danh mục, giữ thông số tàu, chiều dài chiếm cầu, cửa sổ cam kết và giờ gốc nếu không thay đổi. Lỗi lưu giữ form mở và hiển thị tại hộp thoại.
 
-Mỗi nút lưu ghi JSON snapshot của tuần đang mở qua API. Lượt mới chưa có cửa sổ cam kết (`window: null`); sửa lượt cũ giữ cửa sổ/tolerance. `ata` legacy được dùng làm bắt đầu kế hoạch trong tuần, không xác nhận ATA/ATB/ATD thực tế. Chuyển tuần tải dữ liệu độc lập của tuần tương ứng.
+Mỗi nút lưu gửi phép chiếu khoảng ngày qua API, server ghi ngược về JSON snapshot tuần tương ứng. Lượt mới chưa có cửa sổ cam kết (`window: null`); sửa lượt cũ giữ cửa sổ/tolerance. `ata` legacy được dùng làm bắt đầu kế hoạch, không xác nhận ATA/ATB/ATD thực tế. Chuyển khoảng ngày tải dữ liệu độc lập từ các tuần tương ứng.
 
-LOA >225 m hoặc DWT >40.000 hiển thị cảnh báo kiểm tra tiếp nhận, không chặn lưu. DWT thiếu hiển thị “Chưa cung cấp”, không suy diễn. Thông số công bố do người dùng trích website cảng, chưa đối chiếu nguồn trực tiếp. Độ sâu -9,5 m chưa có mốc chuẩn; kích thước vũng quay 365 m chưa xác nhận đường kính. Không tự dùng hai thông số này để kết luận mớn nước/LOA cho phép.
+LOA hoặc DWT vượt ngưỡng do người dùng nhập hiển thị cảnh báo kiểm tra tiếp nhận, không chặn lưu. DWT thiếu hiển thị “Chưa cung cấp”, không suy diễn. Các thông số công bố, độ sâu, vũng quay và nguồn đều do người dùng nhập; không tự dùng độ sâu/vũng quay để kết luận mớn nước/LOA cho phép.
 
-Database đang có giữ nguyên snapshot và lịch cũ. Đổi cấu hình sang 380 m sẽ bị từ chối nếu còn vị trí tàu ngoài tuyến; cần điều chỉnh lịch trước. Endpoint reset thay snapshot của tuần được chỉ định bằng cấu hình mới với danh mục/lịch trống, vì vậy chỉ dùng khi muốn xóa dữ liệu tuần đó.
+Khởi động ứng dụng không tự thay đổi cấu hình đã nhập. Giảm chiều dài tuyến sẽ bị từ chối nếu còn vị trí tàu ngoài tuyến; cần điều chỉnh lịch trước. Endpoint reset đưa snapshot tuần được chỉ định về trạng thái hoàn toàn trống, gồm cả cấu hình cầu bến, danh mục và lịch. CLI import kế hoạch cần snapshot legacy đã có cấu hình cầu hợp lệ; database mới chưa cấu hình chỉ dùng `--schema-only`.
