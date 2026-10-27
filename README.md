@@ -1,5 +1,7 @@
 # MPC Ops Service — AI Agent Handoff
 
+## nhớ đọc CODEX.md
+
 ## 1. Đọc nhanh trước khi sửa code
 
 Đây là ứng dụng nội bộ Node.js dùng **Express 5 + EJS + SQLite**, tổ chức theo MVC. Người dùng đăng nhập admin, vào dashboard `/admin`, sau đó mở các tool nghiệp vụ. Tool đầu tiên và hiện là tool duy nhất là **Berth Window** tại `/admin/berth-window`.
