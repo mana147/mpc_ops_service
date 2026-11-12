@@ -804,6 +804,18 @@ dd {
 .call-dialog .data-form { padding-top: 16px; }
 .call-dialog .io-actions { justify-content: flex-end; }
 .call-dialog .msg { font-size: 13px; }
+.call-dialog fieldset { min-width: 0; margin: 0 0 18px; padding: 14px; border: 1px solid var(--rule); }
+.call-dialog legend { padding: 0 6px; font-size: 13px; font-weight: 600; }
+.call-dialog .call-window-fields { margin-top: 12px; }
+.call-dialog .call-notes { display: grid; gap: 5px; margin-top: 12px; font-size: 13px; }
+.call-dialog textarea { width: 100%; min-width: 0; padding: 8px; font: inherit; border: 1px solid var(--rule); }
+.call-dialog details { margin: 0 0 16px; padding: 12px; border: 1px solid var(--rule); }
+.call-dialog summary { margin-bottom: 12px; cursor: pointer; }
+.call-dialog [hidden] { display: none !important; }
+.call-dialog .io-actions { position: sticky; bottom: 0; padding: 12px 0; background: var(--surface); border-top: 1px solid var(--rule); }
+.call-dialog #callFormMsg.err, .call-dialog #callPreview.err { padding: 8px; border-left: 3px solid var(--alarm); background: #fff3ef; }
+.kpi .v.is-empty { font-family: inherit; font-size: 16px; padding-top: 7px; }
+.call-subtitle { display: block; font-size: 11px; color: var(--muted); }
 
 /* Lịch chọn khoảng ngày dùng chung cho biểu đồ và sơ đồ 2D. */
 .date-range-dialog { width: min(430px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow: auto; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 60px #16212b33; }

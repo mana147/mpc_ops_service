@@ -8,6 +8,7 @@ function createAdminRoutes(controller) {
   router.use(requireAuth);
   router.get('/', controller.showDashboard);
   router.get('/berth-window', controller.showBerthWindow);
+  router.get('/berth-window/settings', controller.showBerthSettings);
   return router;
 }
 

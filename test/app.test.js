@@ -82,7 +82,10 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
 
   const changed = structuredClone(require('./fixtures/configuredBerthData.json'));
   changed.terminal = 'Terminal kiểm thử';
-  const saved = await agent.put('/api/berth-window').send(changed).expect(200);
+  const shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: changed.terminal, quay: changed.quay, berths: changed.berths, vessels: changed.vessels } }).expect(200);
+  const current = (await agent.get('/api/berth-window')).body;
+  const saved = await agent.put('/api/berth-window').send({ ...current.data, versions: current.versions }).expect(200);
   assert.equal(saved.body.data.terminal, 'Terminal kiểm thử');
 
   const persisted = await agent.get('/api/berth-window').expect(200);
@@ -100,7 +103,7 @@ test('API tách dữ liệu theo tuần và không lặp lịch tàu sang tuần
     ata: { day: 0, hour: 8 }, dur: 4, from: 0, to: 100,
     loa: 100, dwt: null, draft: 5, cranes: 1, moves: 20, tol: 0
   }];
-  await agent.put(`/api/berth-window?weekStart=${firstWeek}`).send(firstData).expect(200);
+  await agent.put(`/api/berth-window?weekStart=${firstWeek}`).send({ ...firstData, versions: first.body.versions }).expect(200);
 
   const next = await agent.get(`/api/berth-window?weekStart=${nextWeek}`).expect(200);
   assert.equal(next.body.weekStart, nextWeek);

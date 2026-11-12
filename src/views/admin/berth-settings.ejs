@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · MPC Ops</title>
+  <link rel="stylesheet" href="/css/berth-window.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/berth-settings.css">
+</head>
+<body class="admin-page">
+  <div class="admin-shell">
+    <%- include('../partials/admin-sidebar', { activePage }) %>
+    <div class="admin-workspace">
+      <%- include('../partials/admin-topbar', { pageTitle: 'Cấu hình Berth Window', eyebrow: 'CÔNG CỤ KHAI THÁC', weekNavigation: false, user }) %>
+      <main class="admin-content admin-content-wide berth-settings">
+        <div class="tool-context">
+          <div class="tool-breadcrumb"><a href="/admin">Dashboard</a><span>/</span><strong>Cấu hình Berth Window</strong></div>
+          <a class="btn" id="backToBerth" href="/admin/berth-window">Xem Berth Window</a>
+        </div>
+        <p class="note">Dữ liệu dùng chung cho toàn bộ lịch Berth Window. Lưu một lần, sử dụng cho mọi tuần.</p>
+        <p class="note">Thay đổi khoảng cách an toàn sẽ tính lại cảnh báo xung đột khi xem các tuần cũ. Thông số tàu của lượt đã lập được giữ nguyên.</p>
+        <button type="button" class="btn" id="reloadSettings">Tải lại dữ liệu</button>
+        <%- include('../partials/berth-inputs') %>
+      </main>
+    </div>
+  </div>
+  <script src="/js/berth-dates.js" defer></script>
+  <script src="/js/berth-domain.js" defer></script>
+  <script src="/js/berth-api.js" defer></script>
+  <script src="/js/berth-settings.js" defer></script>
+</body>
+</html>

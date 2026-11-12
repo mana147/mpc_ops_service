@@ -1,6 +1,7 @@
 'use strict';
 
 const domain = require('../../public/js/berth-domain');
+const { validateCall } = require('./berthCallValidator');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -38,6 +39,7 @@ function validateBerthData(payload) {
     assertNumber(q.length, 'quay.length', { min: 1 });
     assertNumber(q.physicalBerthCount, 'quay.physicalBerthCount', { min: 1, integer: true });
     assertNumber(q.safetyGap, 'quay.safetyGap', { min: 0 });
+    if (q.availableCranes != null) assertNumber(q.availableCranes, 'quay.availableCranes', { min: 0, integer: true });
     if (q.depth != null) assertNumber(q.depth, 'quay.depth', { max: 0 });
     for (const field of ['turningBasin', 'maxLoa', 'maxDwt']) {
       if (q[field] != null) assertNumber(q[field], `quay.${field}`, { min: 0.01 });
@@ -70,6 +72,7 @@ function validateBerthData(payload) {
       assert(typeof v.id === 'string' && v.id.trim() && !vesselIds.has(v.id), `vessels[${i}].id thiếu hoặc trùng.`);
       assert(typeof v.name === 'string' && v.name.trim(), `vessels[${i}].name không hợp lệ.`);
       assertNumber(v.loa, `vessels[${i}].loa`, { min: 0.01 });
+      if (v.beam != null) assertNumber(v.beam, `vessels[${i}].beam`, { min: 0.01 });
       if (v.dwt != null) assertNumber(v.dwt, `vessels[${i}].dwt`, { min: 0.01 });
       if (v.imo) {
         assert(typeof v.imo === 'string' && /^\d{7}$/.test(v.imo) && !imos.has(v.imo), 'IMO phải gồm 7 chữ số và không trùng.');
@@ -96,6 +99,11 @@ function validateBerthData(payload) {
     assert(typeof call.vessel === 'string' && call.vessel.trim(), `${base}.vessel không hợp lệ.`);
     assert(call.service === null || typeof call.service === 'string', `${base}.service không hợp lệ.`);
     assert(typeof call.line === 'string', `${base}.line không hợp lệ.`);
+    if (call.schemaVersion !== undefined) {
+      validateCall(call, base, quayLength, vesselIds);
+      return;
+    }
+    assert(call.plannedStartAt === undefined && call.plannedEndAt === undefined, `${base}: cần schemaVersion = 2 cho timestamp kế hoạch.`);
     validateTime(call.ata, `${base}.ata`);
     if (call.window !== null) {
       validateTime(call.window, `${base}.window`);
@@ -110,7 +118,7 @@ function validateBerthData(payload) {
       assert(vesselIds.has(call.vesselId), `${base}.vesselId không tồn tại trong danh mục.`);
       assert(call.loa > 0 && call.to - call.from + 0.000001 >= call.loa, `${base}: đoạn chiếm cầu phải đủ LOA.`);
     }
-    ['loa', 'draft', 'moves'].forEach(field => assertNumber(call[field], `${base}.${field}`, { min: 0 }));
+    ['loa', 'draft', 'moves'].forEach(field => assertNumber(call[field], `${base}.${field}`, { min: 0, integer: field === 'moves' }));
     assertNumber(call.cranes, `${base}.cranes`, { min: 1, integer: true });
     assertNumber(call.tol, `${base}.tol`, { min: 0, max: 24 });
   });

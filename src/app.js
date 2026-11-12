@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const fs = require('node:fs');
 const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
@@ -8,6 +9,7 @@ const { createDatabase } = require('./config/database');
 const SQLiteSessionStore = require('./services/SQLiteSessionStore');
 const User = require('./models/User');
 const BerthWindow = require('./models/BerthWindow');
+const { initializeSharedSettings } = require('./services/importSharedBerthSettings');
 const createAuthController = require('./controllers/authController');
 const createAdminController = require('./controllers/adminController');
 const createBerthWindowApiController = require('./controllers/berthWindowApiController');
@@ -31,12 +33,21 @@ function createApp(options = {}) {
     throw new Error('SESSION_SECRET là bắt buộc khi chạy production.');
   }
 
+  const newDatabase = config.databasePath === ':memory:' || !fs.existsSync(config.databasePath);
   const db = createDatabase({
     filename: config.databasePath,
     adminUsername: config.adminUsername,
     adminPassword: config.adminPassword,
     demoYear: config.demoYear
   });
+  try {
+    if (newDatabase) initializeSharedSettings(db);
+    // Database đã có dữ liệu phải được backup/chuyển bằng CLI trước khi chạy.
+    if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE name = 'berth_shared_settings'").get() ||
+        !db.prepare('SELECT 1 FROM berth_shared_settings WHERE id = 1').get()) {
+      throw new Error('Cần chạy npm run db:shared-config trước khi khởi động ứng dụng.');
+    }
+  } catch (error) { db.close(); throw error; }
   const sessionStore = new SQLiteSessionStore(db);
   const userModel = new User(db);
   const berthWindowModel = new BerthWindow(db);

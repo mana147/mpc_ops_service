@@ -23,6 +23,13 @@ function createAdminController({ berthWindowModel }) {
       });
     },
 
+    showBerthSettings(req, res) {
+      res.render('admin/berth-settings', {
+        title: 'Cấu hình Berth Window', user: req.session.user,
+        activePage: 'berth-settings', navigationTools: adminTools
+      });
+    },
+
     showBerthWindow(req, res) {
       const record = berthWindowModel.get();
       res.render('admin/berth-window', {

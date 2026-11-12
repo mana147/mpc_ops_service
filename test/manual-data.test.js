@@ -7,6 +7,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { createDatabase } = require('../src/config/database');
 const { createApp } = require('../src/app');
+const { initializeSharedSettings } = require('../src/services/importSharedBerthSettings');
+const BerthSettings = require('../src/models/BerthSettings');
 const BerthWindow = require('../src/models/BerthWindow');
 const request = require('supertest');
 const { validateBerthData } = require('../src/services/berthDataValidator');
@@ -24,7 +26,7 @@ test('snapshot chưa cấu hình hợp lệ và không cho lập lịch trước
   }
 });
 
-test('API nhập tay từ trạng thái chưa cấu hình, lưu cấu hình và reset về trống', async t => {
+test('API nhập tay từ trạng thái chưa cấu hình, reset chỉ xóa lịch', async t => {
   const app = createApp({ databasePath: ':memory:', adminPassword: 'ManualTest@123',
     sessionSecret: 'manual-api-test-session-secret', secureCookie: false, demoYear: null });
   t.after(() => { app.locals.sessionStore.close(); app.locals.db.close(); });
@@ -34,20 +36,25 @@ test('API nhập tay từ trạng thái chưa cấu hình, lưu cấu hình và 
   assert.deepEqual((await agent.get(url).expect(200)).body.data, emptySeed);
   const manual = structuredClone(emptySeed);
   manual.vessels.push({ id: 'MANUAL-1', name: 'Tàu nhập tay', imo: '', loa: 100, dwt: null });
-  await agent.put(url).send(manual).expect(200);
+  let shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: manual.terminal, quay: manual.quay, berths: manual.berths, vessels: manual.vessels } }).expect(200);
   assert.deepEqual((await agent.get(url).expect(200)).body.data, manual);
   Object.assign(manual, structuredClone(require('./fixtures/configuredBerthData.json')), { vessels: manual.vessels });
   // Tuyến thực tế có thể dùng ngay mà không cần dựng thêm cầu ảo.
   manual.berths = [];
-  await agent.put(url).send(manual).expect(200);
+  shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: manual.terminal, quay: manual.quay, berths: manual.berths, vessels: manual.vessels } }).expect(200);
   manual.calls.push({ id: 'MANUAL-C1', vesselId: 'MANUAL-1', vessel: 'Tàu nhập tay',
     service: null, line: '', window: null, ata: { day: 0, hour: 8 }, dur: 4,
     from: 0, to: 100, loa: 100, draft: 5, cranes: 1, moves: 20, tol: 0 });
-  await agent.put(url).send(manual).expect(200);
+  const current = (await agent.get(url)).body;
+  await agent.put(url).send({ ...manual, versions: current.versions }).expect(200);
   assert.equal((await agent.get(url).expect(200)).body.data.calls.length, 1);
-  const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-26').send({}).expect(200);
-  assert.deepEqual(reset.body.data, emptySeed);
-  assert.deepEqual((await agent.get(url).expect(200)).body.data, emptySeed);
+  const weekly = (await agent.get('/api/berth-window?weekStart=2026-10-26')).body;
+  const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-26').send({ versions: weekly.versions }).expect(200);
+  const afterReset = { ...manual, calls: [] };
+  assert.deepEqual(reset.body.data, afterReset);
+  assert.deepEqual((await agent.get(url).expect(200)).body.data, afterReset);
 });
 
 test('database mặc định trống, khởi động lại giữ dữ liệu nhập tay và tuần đã xóa', () => {
@@ -59,6 +66,7 @@ test('database mặc định trống, khởi động lại giữ dữ liệu nh�
   let db;
   try {
     db = createDatabase(config);
+    initializeSharedSettings(db);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM berth_window_week_datasets').get().n, 0);
     const model = new BerthWindow(db);
     const empty = model.get('2026-10-26').data;
@@ -68,12 +76,15 @@ test('database mặc định trống, khởi động lại giữ dữ liệu nh�
     for (const key of ['vessels', 'calls', 'tideWindows']) assert.deepEqual(empty[key], []);
     const manual = structuredClone(empty);
     manual.vessels.push({ id: 'MANUAL-1', name: 'Tàu nhập tay', imo: '', loa: 150, dwt: 18000 });
-    model.update('2026-10-19', manual, 1);
+    const settings = new BerthSettings(db);
+    settings.update({ terminal: manual.terminal, quay: manual.quay, berths: manual.berths, vessels: manual.vessels }, settings.get().version, 1);
+    const current = model.get('2026-10-19');
+    model.update('2026-10-19', manual, 1, current.versions);
     db.close();
     db = createDatabase(config);
     const reopened = new BerthWindow(db);
     assert.deepEqual(reopened.get('2026-10-19').data, manual);
-    assert.deepEqual(reopened.get('2026-10-26').data, empty);
+    assert.deepEqual(reopened.get('2026-10-26').data, manual);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM berth_window_week_datasets').get().n, 2);
   } finally {
     if (db?.open) db.close();

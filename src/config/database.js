@@ -68,7 +68,10 @@ function createDatabase({ filename, adminUsername, adminPassword, demoYear = nul
       .run(JSON.stringify(seedBerthData));
   }
 
-  if (demoYear !== null) seedDemoBerthWeeks(db, { year: demoYear });
+  if (demoYear !== null) {
+    try { seedDemoBerthWeeks(db, { year: demoYear }); }
+    catch (error) { db.close(); throw error; }
+  }
 
   return db;
 }

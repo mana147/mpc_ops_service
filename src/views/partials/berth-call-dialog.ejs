@@ -1,25 +1,90 @@
 <dialog id="callDialog" class="call-dialog" aria-labelledby="callDialogTitle">
   <div class="panel-head"><h2 id="callDialogTitle">Thêm lượt tàu</h2></div>
-      <form id="callForm" class="data-form">
-        <input name="id" type="hidden">
-        <div class="fields">
-          <label>Tàu<select name="vesselId" required></select></label>
-          <label>Số chuyến<input name="voyage"></label>
-          <label>Tuyến dịch vụ<input name="service"></label>
-          <label>Hãng tàu / đơn vị<input name="line"></label>
-          <label>Ngày bắt đầu<input name="date" type="date" required></label>
-          <label>Giờ bắt đầu<input name="hour" type="time" required value="08:00"></label>
-          <label>Thời gian chiếm cầu (giờ)<input name="dur" type="number" min="0.1" max="168" step="any" required value="12"></label>
-          <label>Gợi ý từ cầu ảo<select name="section"></select></label>
-          <label>Vị trí bắt đầu (m)<input name="from" type="number" min="0" step="any" required value="0"></label>
-          <label>Vị trí kết thúc (m)<output id="callEnd">—</output></label>
-          <label>Mớn nước lượt tàu (m)<input name="draft" type="number" min="0" step="any" required></label>
-          <label>Số cẩu<input name="cranes" type="number" min="1" step="1" required value="1"></label>
-          <label>Sản lượng dự kiến (moves)<input name="moves" type="number" min="0" step="1" required value="0"></label>
-        </div>
-        <p id="callFormMsg" class="msg" role="status" aria-live="polite"></p>
-        <p id="callPreview" role="status"></p>
-        <p>Lượt tàu được lưu theo ngày bắt đầu đã chọn. Lượt mới là tàu vãng lai. Vị trí kết thúc = vị trí bắt đầu + LOA; lượt đã lưu giữ nguyên chiều dài chiếm cầu khi sửa lịch; tàu được phép đi qua ranh giới cầu ảo.</p>
-        <div class="io-actions"><button class="btn btn-primary" id="saveCall">Lưu lượt tàu</button><button type="button" class="btn" id="closeCall">Hủy</button></div>
-      </form>
+  <form id="callForm" class="data-form">
+    <input name="id" type="hidden">
+    <fieldset><legend>1. Thông tin lượt</legend>
+      <div class="fields">
+        <label>Tàu<select name="vesselId" required></select></label>
+        <label>Mã lượt<output id="callReference">Tự tạo khi lưu</output></label>
+        <label>Chuyến vào<input name="voyageIn" maxlength="200"></label>
+        <label>Chuyến ra<input name="voyageOut" maxlength="200"></label>
+        <label>Tuyến dịch vụ<input name="service" maxlength="200" list="callServices"></label>
+        <label>Hãng tàu / đơn vị<input name="line" maxlength="200" list="callLines"></label>
+        <label>Đại lý tàu<input name="agent" maxlength="200"></label>
+      </div>
+      <datalist id="callServices"></datalist><datalist id="callLines"></datalist>
+      <p id="callVesselInfo">Chọn tàu để xem IMO, LOA, chiều rộng và DWT.</p>
+    </fieldset>
+    <fieldset><legend>2. Kế hoạch thời gian · giờ Việt Nam (UTC+7)</legend>
+      <div class="fields">
+        <label>ETA đến cảng / điểm chờ<input name="eta" type="datetime-local"></label>
+        <label>Địa điểm ETA<input name="etaLocation" maxlength="200" placeholder="Ví dụ: điểm đón hoa tiêu / vùng neo"></label>
+        <label>Cập cầu kế hoạch<input name="plannedStart" type="datetime-local" required></label>
+        <label>Rời cầu kế hoạch<input name="plannedEnd" type="datetime-local" required></label>
+        <label>Thời gian chiếm cầu (giờ)<input name="duration" type="number" min="0.0166666667" step="any" placeholder="Tính từ giờ cập / rời"></label>
+      </div>
+      <p>Nhập giờ cập và giờ rời, hoặc nhập số giờ để tính giờ rời. Đây là kế hoạch, không phải giờ thực tế. Không mặc định thời lượng 12 giờ.</p>
+      <p id="callRangeHint"></p>
+    </fieldset>
+    <fieldset><legend>3. Bố trí cầu và cửa sổ cam kết</legend>
+      <div class="fields">
+        <label>Gợi ý từ cầu ảo<select name="section"></select></label>
+        <label>Vị trí bắt đầu (m)<input name="from" type="number" min="0" step="any" required value="0"></label>
+        <label>Chiều dài chiếm cầu (m)<input name="occupiedLength" type="number" min="0.01" step="any" required></label>
+        <label>Vị trí kết thúc (m)<output id="callEnd">—</output></label>
+        <label>Mạn cập<select name="berthingSide"><option value="">Chưa xác định</option><option value="port">Mạn trái</option><option value="starboard">Mạn phải</option></select></label>
+        <label>Hướng mũi theo tọa độ cầu<select name="bowDirection"><option value="">Chưa xác định</option><option value="increasing">Về phía mét tăng</option><option value="decreasing">Về phía mét giảm</option></select></label>
+        <label>Loại lượt<select name="visitType"><option value="adhoc">Vãng lai / chưa có cửa sổ</option><option value="window">Theo cửa sổ cam kết</option></select></label>
+      </div>
+      <div class="fields call-window-fields" id="callWindowFields" hidden>
+        <label>Gợi ý từ cửa sổ lượt đã lưu<select name="windowSuggestion"><option value="">Nhập cửa sổ trực tiếp</option></select></label>
+        <label>Bắt đầu cửa sổ<input name="windowStart" type="datetime-local"></label>
+        <label>Kết thúc cửa sổ<input name="windowEnd" type="datetime-local"></label>
+        <label>Dung sai đến sớm (giờ)<input name="earlyTolerance" type="number" min="0" step="any" value="0"></label>
+        <label>Dung sai đến trễ (giờ)<input name="lateTolerance" type="number" min="0" step="any" value="0"></label>
+      </div>
+      <p id="callWindowHint" hidden>Gợi ý lấy từ các lượt đã lưu, áp dụng theo tuần của ngày cập đang nhập; cần kiểm tra lại ngày và điều khoản trước khi lưu.</p>
+      <p>Tọa độ là hai đầu đoạn chiếm cầu, không mặc định là mũi/lái. Khoảng cách an toàn giữa tàu lấy từ cấu hình chung; không cần cộng lại vào LOA.</p>
+    </fieldset>
+    <fieldset><legend>4. Khai thác dự kiến</legend>
+      <div class="fields">
+        <label>Mớn nước đến (m)<input name="arrivalDraft" type="number" min="0.01" step="any" placeholder="Chưa có thông tin"></label>
+        <label>Mớn nước rời (m)<input name="departureDraft" type="number" min="0.01" step="any" placeholder="Chưa có thông tin"></label>
+        <label>Loại hàng / mục đích<select name="cargoType"><option value="container">Container</option><option value="general">Hàng tổng hợp</option><option value="bulk">Hàng rời</option><option value="none">Không làm hàng</option></select></label>
+        <label>Đơn vị sản lượng<select name="cargoUnit"><option value="moves">moves</option><option value="tonnes">tấn</option><option value="m3">m³</option><option value="units">đơn vị</option></select></label>
+        <label>Tổng sản lượng dự kiến<input name="cargoTotal" type="number" min="0" step="1" placeholder="Chưa có thông tin"></label>
+        <label>Số cẩu dự kiến<input name="cranes" type="number" min="0" step="1" placeholder="Chưa phân bổ"></label>
+      </div>
+      <div class="fields call-window-fields" id="callContainerFields">
+        <label>Dỡ (moves)<input name="discharge" type="number" min="0" step="1"></label>
+        <label>Xếp (moves)<input name="load" type="number" min="0" step="1"></label>
+        <label>Đảo chuyển (moves)<input name="restow" type="number" min="0" step="1"></label>
+      </div>
+      <p id="callCargoHint">Có thể nhập tổng trước. Nếu nhập cơ cấu, điền đủ dỡ/xếp/đảo chuyển; tổng được tính tự động. TEU không thay thế moves.</p>
+      <p id="callCraneCapacity"></p>
+      <p>Thông số còn thiếu được giữ là “Chưa có thông tin”. Hệ thống chưa tự xác nhận điều kiện tiếp nhận theo độ sâu, triều hoặc luồng.</p>
+    </fieldset>
+    <fieldset><legend>5. Xác nhận và ghi chú</legend>
+      <div class="fields">
+        <label>Trạng thái kế hoạch<select name="planningStatus"><option value="draft">Nháp</option><option value="confirmed">Đã xác nhận</option><option value="cancelled">Đã hủy</option></select></label>
+        <label>Ưu tiên<select name="priority"><option value="normal">Bình thường</option><option value="high">Ưu tiên cao</option></select></label>
+      </div>
+      <label class="call-notes">Ghi chú điều độ / yêu cầu đặc biệt / lý do ưu tiên<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+      <p>Xác nhận cần ETA (khi chưa có ATB), mớn nước đến, mạn cập; lượt làm hàng cần sản lượng, cẩu và tổng cẩu khả dụng đã cấu hình. Bản nháp có thể lưu cảnh báo xung đột; không cho một tàu xuất hiện đồng thời ở hai lượt.</p>
+    </fieldset>
+    <details id="callActualDetails" hidden>
+      <summary>Cập nhật thời gian thực tế sau khi tạo lượt</summary>
+      <div class="fields">
+        <label>Đến cảng thực tế (ATA)<input name="actualArrival" type="datetime-local"></label>
+        <label>Cập cầu thực tế (ATB)<input name="actualBerth" type="datetime-local"></label>
+        <label>Bắt đầu làm hàng thực tế<input name="actualOperationsStart" type="datetime-local"></label>
+        <label>Kết thúc làm hàng thực tế<input name="actualOperationsEnd" type="datetime-local"></label>
+        <label>Rời cầu thực tế (ATD)<input name="actualDeparture" type="datetime-local"></label>
+      </div>
+      <p>Chỉ nhập mốc đã xảy ra; không sao chép giờ kế hoạch vào giờ thực tế. Trạng thái khai thác được suy ra từ các mốc này.</p>
+    </details>
+    <p id="callFormMsg" class="msg" role="status" aria-live="polite"></p>
+    <p id="callPreview" role="status" aria-live="polite"></p>
+    <div class="io-actions"><button class="btn btn-primary" id="saveCall">Lưu lượt tàu</button><button type="button" class="btn" id="closeCall">Hủy</button></div>
+  </form>
 </dialog>

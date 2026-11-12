@@ -6,6 +6,8 @@ const { requireAuth } = require('../middleware/auth');
 function createApiRoutes(controller) {
   const router = express.Router();
   router.use(requireAuth);
+  router.get('/berth-window/settings', controller.getSettings);
+  router.put('/berth-window/settings', controller.updateSettings);
   router.get('/berth-window/range', controller.getRange);
   router.put('/berth-window/range', controller.updateRange);
   router.get('/berth-window', controller.get);

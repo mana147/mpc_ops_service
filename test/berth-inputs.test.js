@@ -6,7 +6,6 @@ const { createApp } = require('../src/app');
 const { validateBerthData } = require('../src/services/berthDataValidator');
 const domain = require('../public/js/berth-domain');
 const seed = require('./fixtures/configuredBerthData.json');
-const emptySeed = require('../src/data/seedBerthData');
 const legacy = require('./fixtures/legacyBerthData.json');
 
 function dataset() {
@@ -86,18 +85,26 @@ test('API lưu và đọc lại cấu hình, danh mục, lượt tàu; lỗi kh�
   const agent = request.agent(app);
   await agent.post('/login').type('form').send({ username: 'admin', password: 'InputTest@123' }).expect(302);
   const page = await agent.get('/admin/berth-window').expect(200);
-  for (const id of ['quayForm', 'vesselForm', 'callForm']) assert.match(page.text, new RegExp(`id="${id}"`));
+  assert.match(page.text, /id="callForm"/);
+  const settingsPage = await agent.get('/admin/berth-window/settings').expect(200);
+  for (const id of ['quayForm', 'vesselForm']) assert.match(settingsPage.text, new RegExp(`id="${id}"`));
   const data = dataset();
   const api = '/api/berth-window?weekStart=2026-10-19';
-  await agent.put(api).send(data).expect(200);
+  let shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: data.terminal, quay: data.quay, berths: data.berths, vessels: data.vessels } }).expect(200);
+  let current = (await agent.get(api)).body;
+  await agent.put(api).send({ ...data, versions: current.versions }).expect(200);
   const persisted = await agent.get(api).expect(200);
   assert.deepEqual(persisted.body.data, data);
   const invalid = structuredClone(data); invalid.quay.length = 200;
-  await agent.put(api).send(invalid).expect(422);
+  shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: invalid.terminal, quay: invalid.quay, berths: invalid.berths, vessels: invalid.vessels } }).expect(422);
   assert.deepEqual((await agent.get(api)).body.data, data);
   // Vượt ngưỡng vẫn lưu để người lập kế hoạch kiểm tra điều kiện tiếp nhận.
   data.vessels[0].dwt = 41000;
-  await agent.put(api).send(data).expect(200);
-  const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-19').send({}).expect(200);
-  assert.deepEqual(reset.body.data, emptySeed);
+  shared = (await agent.get('/api/berth-window/settings')).body;
+  await agent.put('/api/berth-window/settings').send({ version: shared.version, data: { terminal: data.terminal, quay: data.quay, berths: data.berths, vessels: data.vessels } }).expect(200);
+  current = (await agent.get(api)).body;
+  const reset = await agent.post('/api/berth-window/reset?weekStart=2026-10-19').send({ versions: current.versions }).expect(200);
+  assert.deepEqual(reset.body.data, { ...data, calls: [], tideWindows: [] });
 });

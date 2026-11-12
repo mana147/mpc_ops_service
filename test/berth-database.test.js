@@ -18,6 +18,7 @@ function fixture(t, { migrate = true, data = seed } = {}) {
   db.exec(`CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT);
     INSERT INTO users VALUES (1, 'planner');
     CREATE TABLE berth_window_datasets (id INTEGER PRIMARY KEY, json_data TEXT, updated_at TEXT, updated_by INTEGER);
+    CREATE TABLE berth_window_week_datasets (week_start TEXT PRIMARY KEY, json_data TEXT, updated_at TEXT, updated_by INTEGER);
     CREATE TABLE sessions (sid TEXT PRIMARY KEY, sess TEXT);
     INSERT INTO sessions VALUES ('existing-session', '{"user":{"id":1}}');`);
   db.prepare('INSERT INTO berth_window_datasets VALUES (1, ?, ?, 1)').run(JSON.stringify(data), '2026-09-28 08:27:33');
@@ -34,9 +35,9 @@ function imported(t) {
 test('migration chạy lại không đổi schema, user, session hoặc JSON hiện tại', t => {
   const db = fixture(t, { migrate: false });
   const source = db.prepare('SELECT * FROM berth_window_datasets').all();
-  assert.deepEqual(migrateDatabase(db), ['001_berth_window.sql']);
+  assert.deepEqual(migrateDatabase(db), ['001_berth_window.sql', '002_shared_berth_settings.sql', '003_berth_crane_capacity.sql']);
   assert.deepEqual(migrateDatabase(db), []);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get().n, 3);
   assert.deepEqual(db.prepare('SELECT * FROM berth_window_datasets').all(), source);
   assert.equal(db.prepare('SELECT username FROM users').get().username, 'planner');
   assert.equal(db.prepare('SELECT sid FROM sessions').get().sid, 'existing-session');

@@ -81,6 +81,10 @@ function buildDemoWeekData(weekStart, weekIndex) {
 }
 
 function seedDemoBerthWeeks(db, { year = 2026 } = {}) {
+  if (db.prepare("SELECT 1 FROM sqlite_schema WHERE name = 'berth_shared_settings'").get() &&
+      db.prepare('SELECT 1 FROM berth_shared_settings WHERE id = 1').get()) {
+    throw new Error('Database đã dùng cấu hình chung. Để trống BERTH_DEMO_YEAR; chỉ seed demo khi khởi tạo database thử mới.');
+  }
   const select = db.prepare(`
     SELECT json_data, updated_by
     FROM berth_window_week_datasets

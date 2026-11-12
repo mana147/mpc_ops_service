@@ -21,9 +21,16 @@ const DAYS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 
 
 // Chỉ hiển thị dữ liệu đã tải thành công từ API.
 let data = null;
+let dataVersions = null;
+let dataWarnings = [];
+let windowSuggestions = [];
 let QUAY_CONFIG;
 let dataSaving = false;
 let displayRange = BerthDates.range(BerthDates.today(), BerthDates.today());
+try {
+  const params = new URLSearchParams(location.search);
+  if (params.has('start') || params.has('end')) displayRange = BerthDates.range(params.get('start'), params.get('end'));
+} catch (_) { /* Khoảng không hợp lệ: mở hôm nay. */ }
 let dataLoading = false;
 // ID lượt tàu đang chọn trên biểu đồ, bảng và khung chi tiết.
 let selected = null;
@@ -61,6 +68,11 @@ function renderWeekRange() {
 	$('#range').title = `${days} ngày · Bấm để chọn khoảng thời gian`;
 	$('#prevw').setAttribute('aria-label', `Lùi ${days} ngày`);
 	$('#nextw').setAttribute('aria-label', `Tiến ${days} ngày`);
+	$('#settingsLink').href = `/admin/berth-window/settings?start=${start}&end=${end}`;
+	for (const link of document.querySelectorAll('.admin-nav-link')) {
+		const pathname = new URL(link.href).pathname;
+		if (['/admin/berth-window', '/admin/berth-window/settings'].includes(pathname)) link.href = `${pathname}?start=${start}&end=${end}`;
+	}
 }
 
 /** Điều chỉnh tỷ lệ biểu đồ cho desktop, điện thoại dọc và điện thoại xoay ngang. */
@@ -76,50 +88,47 @@ function updateResponsiveScale() {
 
 /** Thêm thời gian, trạng thái và danh sách xung đột vào bản sao mỗi lượt tàu. */
 function enrich() {
-	// Đổi thời gian từng tàu sang giờ tính từ đầu tuần để so sánh.
-	const calls = data.calls.map(c => {
-		const start = h(c.ata.day, c.ata.hour);
-		const o = { ...c, start, end: start + c.dur, conflicts: [], warnings: BerthDomain.warnings(c, QUAY_CONFIG) };
-		if (c.window) {
-			o.wStart = h(c.window.day, c.window.hour);
-			o.wEnd = o.wStart + c.window.dur;
-			o.delta = start - o.wStart;
-			o.status = Math.abs(o.delta) <= (c.tol || 0) ? 'ok' : (o.delta > 0 ? 'late' : 'early');
-		} else {
-			o.status = 'adhoc'; o.delta = null;
-		}
-		return o;
-	});
-	// Xung đột khi trùng thời gian và khoảng cách giữa hai tàu nhỏ hơn SAFETY_GAP.
-	// Mỗi đoạn bến được nới SAFETY_GAP/2 về hai phía để so sánh đối xứng.
-	for (let i = 0; i < calls.length; i++) {
-		for (let j = i + 1; j < calls.length; j++) {
-		const a = calls[i], b = calls[j];
-				const timeOverlap = a.start < b.end && b.start < a.end;
-			const spaceOverlap = (a.from - SAFETY_GAP / 2) < (b.to + SAFETY_GAP / 2) && (b.from - SAFETY_GAP / 2) < (a.to + SAFETY_GAP / 2);
-			if (timeOverlap && spaceOverlap) { a.conflicts.push(b.id); b.conflicts.push(a.id); }
-		}
-	}
-	return calls;
+  const calls = data.calls.map(c => {
+    const plan = BerthCalls.timing(c, displayRange.start), window = BerthCalls.commitment(c, displayRange.start);
+    const o = { ...c, ...plan, window, conflicts: [], warnings: BerthDomain.warnings(c, QUAY_CONFIG),
+      draft: BerthCalls.isNew(c) ? c.arrivalDraft : c.draft, moves: BerthCalls.quantity(c),
+      unit: BerthCalls.isNew(c) ? BerthCalls.units[c.cargo.unit] : 'moves' };
+    for (const warning of dataWarnings) if (`${warning.week}:${warning.callId}` === c.id) o.warnings.push(warning.message);
+    o.warnings = [...new Set(o.warnings)];
+    if (window) {
+      o.wStart = window.start; o.wEnd = window.end; o.delta = plan.start - window.start;
+      o.status = o.delta >= -window.early && o.delta <= window.late ? 'ok' : o.delta > 0 ? 'late' : 'early';
+    } else { o.status = 'adhoc'; o.delta = null; }
+    return o;
+  });
+  for (let i = 0; i < calls.length; i++) for (let j = i + 1; j < calls.length; j++) {
+    const a = calls[i], b = calls[j];
+    if (BerthCalls.cancelled(a) || BerthCalls.cancelled(b)) continue;
+    const timeOverlap = a.start < b.end && b.start < a.end;
+    const sameVessel = a.vesselId && b.vesselId ? a.vesselId === b.vesselId : a.vessel === b.vessel;
+    const spaceOverlap = a.from < b.to + SAFETY_GAP && b.from < a.to + SAFETY_GAP;
+    if (timeOverlap && (sameVessel || spaceOverlap)) { a.conflicts.push(b.id); b.conflicts.push(a.id); }
+  }
+  return calls;
 }
 
-/** Tính KPI trong khoảng chọn, không phụ thuộc bộ lọc tuyến. */
+/** KPI khai thác theo kế hoạch; adherence thực tế chỉ tính khi có ATB và cửa sổ. */
 function metrics(calls) {
-	// mh là tổng mét·giờ; vùng chồng lấn vẫn cộng riêng cho từng tàu.
-	// conflicts đếm tàu có xung đột, không đếm số cặp xung đột.
-	let mh = 0, delaySum = 0, onWindow = 0, scheduled = 0, conflicts = 0;
-	calls.forEach(c => {
-		mh += Math.max(0, Math.min(c.end, displayRange.days * 24) - Math.max(c.start, 0)) * (c.to - c.from);
-		if (c.window) { scheduled++; if (c.status === 'ok') onWindow++; if (c.delta > 0) delaySum += c.delta; }
-		if (c.conflicts.length) conflicts++;
-	});
-	return {
-		util: QUAY_LEN > 0 ? mh / (displayRange.days * 24 * QUAY_LEN) * 100 : 0,
-		calls: calls.length,
-		adherence: scheduled ? onWindow / scheduled * 100 : 0,
-		delay: delaySum,
-		conflicts
-	};
+  let mh = 0, delaySum = 0, onWindow = 0, actualRecorded = 0, conflicts = 0;
+  calls.forEach(c => {
+    mh += Math.max(0, Math.min(c.end, displayRange.days * 24) - Math.max(c.start, 0)) * (c.to - c.from);
+    if (c.window) {
+      if (c.delta > 0) delaySum += c.delta;
+      if (c.actual?.berthAt != null) {
+        actualRecorded++;
+        const delta = (c.actual.berthAt - BerthCalls.midnight(displayRange.start)) / BerthCalls.HOUR - c.wStart;
+        if (delta >= -c.window.early && delta <= c.window.late) onWindow++;
+      }
+    }
+    if (c.conflicts.length) conflicts++;
+  });
+  return { util: QUAY_LEN > 0 ? mh / (displayRange.days * 24 * QUAY_LEN) * 100 : 0,
+    calls: calls.length, adherence: actualRecorded ? onWindow / actualRecorded * 100 : null, delay: delaySum, conflicts };
 }
 
 /** Vẽ trục mét và các phân đoạn bến trong SVG cố định bên trái. */
@@ -207,7 +216,7 @@ function renderChart(calls) {
 		if (bw > 58 && bh > 24) {
 			s.push(`<text x="${bx + 8}" y="${by + 18}" font-size="12.5" font-weight="600" fill="${txt}">${esc(c.vessel)}</text>`);
 			if (bh > 40) s.push(`<text x="${bx + 8}" y="${by + 34}" font-size="11.5" font-family="IBM Plex Mono, monospace" fill="${txt}" opacity=".8">${c.service ? esc(c.service) + ' · ' : ''}${c.from}–${c.to} m</text>`);
-			if (bh > 58) s.push(`<text x="${bx + 8}" y="${by + 50}" font-size="11.5" font-family="IBM Plex Mono, monospace" fill="${txt}" opacity=".7">${fmtH(c.start)}→${fmtH(c.end)} · ${c.cranes} cẩu</text>`);
+			if (bh > 58) s.push(`<text x="${bx + 8}" y="${by + 50}" font-size="11.5" font-family="IBM Plex Mono, monospace" fill="${txt}" opacity=".7">${fmtH(c.start)}→${fmtH(c.end)} · ${c.cranes ?? 'Chưa phân bổ'} cẩu</text>`);
 		}
 		s.push(`<title>${esc(c.vessel)} — ${fmtDT(c.start)} → ${fmtDT(c.end)}, ${c.from}–${c.to} m</title></g>`);
 	});
@@ -299,6 +308,11 @@ function renderBerth2d(calls) {
 		if (call.motion.phase === 'berthed') svg.push(`<line x1="${bx + bw / 2}" y1="${by + shipHeight}" x2="${bx + bw / 2}" y2="${quayY}" stroke="${stroke}" stroke-dasharray="3 3" opacity=".55"/>`);
 		svg.push(`<rect x="${bx}" y="${by}" width="${bw}" height="${shipHeight}" rx="${Math.min(20, bw / 3)}" fill="${fill}" stroke="${isSelected ? '#16212B' : stroke}" stroke-width="${isSelected ? 3 : 1.5}"/>`);
 		if (bw >= 50) svg.push(`<text x="${bx + bw / 2}" y="${by + 23}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(vesselLabel)}</text>`);
+		if (bw >= 48 && call.bowDirection) {
+			const direction = call.bowDirection === 'increasing' ? 1 : -1;
+			const tip = direction === 1 ? bx + bw - 6 : bx + 6;
+			svg.push(`<path d="M ${tip - direction * 7} ${by + 9} L ${tip} ${by + 15} L ${tip - direction * 7} ${by + 21}" fill="none" stroke="${stroke}" stroke-width="2"><title>Hướng mũi: ${direction === 1 ? 'mét tăng' : 'mét giảm'}</title></path>`);
+		}
 		if (bw >= 122) svg.push(`<text x="${bx + bw / 2}" y="${by + 40}" text-anchor="middle" font-size="10.5" font-family="IBM Plex Mono, monospace" fill="${text}" opacity=".82">${call.motion.phase === 'berthed' ? `${call.from}–${call.to} m${call.service ? ` · ${esc(call.service)}` : ''}` : phaseLabel}</text>`);
 		svg.push(`<title>${esc(call.vessel)} — ${phaseLabel}; dự kiến ${fmtDT(call.start)} → ${fmtDT(call.end)}, vị trí ${call.from}–${call.to} m</title></g>`);
 	});
@@ -341,15 +355,15 @@ function renderKpis(m) {
 	const tiles = [
 		{ v: m.util.toFixed(1) + '%', l: 'Khai thác mét·giờ cầu bến' },
 		{ v: m.calls, l: 'Lượt tàu trong khoảng chọn' },
-		{ v: m.adherence.toFixed(0) + '%', l: 'Cập đúng cửa sổ' },
-		{ v: m.delay.toFixed(1) + ' h', l: 'Tổng giờ cập trễ' },
+		{ v: m.adherence === null ? 'Chưa có dữ liệu' : m.adherence.toFixed(0) + '%', l: 'Cập đúng cửa sổ (thực tế)', empty: m.adherence === null },
+		{ v: m.delay.toFixed(1) + ' h', l: 'Tổng giờ lệch trễ kế hoạch' },
 		{ v: m.conflicts, l: 'Lượt tàu có xung đột', warn: m.conflicts > 0 }
 	];
-	$('#kpis').innerHTML = tiles.map(t => `<div class="kpi${t.warn ? ' warn' : ''}"><div class="v">${t.v}</div><div class="l">${t.l}</div></div>`).join('');
+	$('#kpis').innerHTML = tiles.map(t => `<div class="kpi${t.warn ? ' warn' : ''}"><div class="v${t.empty ? ' is-empty' : ''}">${t.v}</div><div class="l">${t.l}</div></div>`).join('');
 }
 
 // Ánh xạ trạng thái sang class CSS và nhãn tiếng Việt trong bảng.
-const STATUS = { ok: ['p-ok', 'Đúng cửa sổ'], late: ['p-late', 'Cập trễ'], early: ['p-late', 'Cập sớm'], adhoc: ['p-adhoc', 'Vãng lai'] };
+const STATUS = { ok: ['p-ok', 'Kế hoạch trong cửa sổ'], late: ['p-late', 'Kế hoạch trễ'], early: ['p-late', 'Kế hoạch sớm'], adhoc: ['p-adhoc', 'Vãng lai'] };
 
 /** Vẽ danh sách theo tuyến đang lọc và cho phép chọn bằng chuột/bàn phím. */
 function renderTable(calls) {
@@ -358,15 +372,16 @@ function renderTable(calls) {
 		const st = c.conflicts.length ? ['p-bad', 'Xung đột'] : STATUS[c.status];
 		const dl = c.delta === null ? '—' : (c.delta > 0 ? '+' : '') + c.delta.toFixed(1) + ' h';
 		return `<tr data-id="${esc(c.id)}" class="${selected === c.id ? 'sel' : ''}" tabindex="0">
-      <td>${esc(c.vessel)}</td><td>${c.service ? esc(c.service) : '—'}</td>
+      <td>${esc(c.vessel)}<span class="call-subtitle">${esc(c.voyageIn || c.voyage || 'Chưa có chuyến vào')}${c.voyageOut ? ' / ' + esc(c.voyageOut) : ''}</span></td><td>${c.service ? esc(c.service) : '—'}</td>
       <td class="num">${c.from}–${c.to}</td>
       <td class="num">${c.window ? fmtDT(c.wStart) : '—'}</td>
-      <td class="num">${fmtDT(c.start)}</td>
+      <td class="num">${fmtDT(c.start)} → ${fmtDT(c.end)}</td>
       <td class="num">${dl}</td>
-      <td><span class="pill ${st[0]}">${st[1]}</span>${c.warnings.length ? `<br><span class="pill p-late">Kiểm tra tiếp nhận</span>` : ""}</td>
+      <td>${esc(BerthCalls.labels[BerthCalls.phase(c)])}</td>
+      <td><span class="pill ${st[0]}">${st[1]}</span>${c.warnings.length ? `<br><span class="pill p-late">Có cảnh báo</span>` : ""}</td>
       <td class="call-actions"><button class="btn" type="button" data-view-call="${esc(c.id)}" aria-label="Xem ${esc(c.vessel)}">Xem</button> <button class="btn" type="button" data-edit-call="${esc(c.id)}" aria-label="Sửa ${esc(c.vessel)}">Sửa</button> <button class="btn btn-danger" type="button" data-delete-call="${esc(c.id)}" aria-label="Xóa ${esc(c.vessel)}">Xóa</button></td></tr>`;
 	}).join('');
-	$('#callTable tbody').innerHTML = rows || '<tr><td colspan="8" class="empty-row">Không có lượt tàu nào khớp bộ lọc.</td></tr>';
+	$('#callTable tbody').innerHTML = rows || '<tr><td colspan="9" class="empty-row">Không có lượt tàu nào khớp bộ lọc.</td></tr>';
 	document.querySelectorAll('#callTable tbody tr[data-id]').forEach(tr => {
 		tr.addEventListener('click', event => { if (!event.target.closest('button')) select(tr.dataset.id); });
 		tr.addEventListener('keydown', e => { if (e.target === tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); select(tr.dataset.id); } });
@@ -378,20 +393,30 @@ function renderTable(calls) {
 function renderDetail(calls) {
 	const c = calls.find(x => x.id === selected);
 	if (!c) { $('#detail').innerHTML = '<div class="empty">Chưa chọn lượt tàu nào.</div>'; return; }
-	const rows = [
-		['Tuyến', c.service ? c.service + ' · ' + c.line : c.line],
-		['Cửa sổ cam kết', c.window ? fmtDT(c.wStart) + ' → ' + fmtDT(c.wEnd) : 'Không có'],
-		['Giờ dự kiến', fmtDT(c.start) + ' → ' + fmtDT(c.end)],
-		['Thời gian tại bến', c.dur.toFixed(1) + ' giờ'],
-		['Vị trí dọc cầu', c.from + ' – ' + c.to + ' m'],
-		['Số chuyến', c.voyage || 'Chưa cung cấp'],
-		['DWT', c.dwt ?? 'Chưa cung cấp'],
-		['LOA / mớn nước', c.loa + ' m / ' + c.draft + ' m'],
-		['Cẩu bố trí', c.cranes],
-		['Sản lượng dự kiến', c.moves + ' moves'],
-		['Năng suất yêu cầu', (c.moves / c.dur).toFixed(1) + ' moves/h'],
-		['Năng suất mỗi cẩu', (c.moves / c.dur / c.cranes).toFixed(1) + ' moves/cẩu/h']
-	];
+  const at = time => time == null ? 'Chưa có' : `${BerthDates.label(BerthCalls.local(time).slice(0, 10))} ${BerthCalls.local(time).slice(11)}`;
+  const rows = [
+    ['Mã lượt', c.callReference || c.id],
+    ['Tình trạng', BerthCalls.labels[BerthCalls.phase(c)]],
+    ['Tuyến / hãng tàu', [c.service, c.line].filter(Boolean).join(' · ') || 'Chưa có'],
+    ['Chuyến vào / ra', `${c.voyageIn || c.voyage || '—'} / ${c.voyageOut || '—'}`],
+    ['ETA / địa điểm', `${at(c.etaAt)}${c.etaLocation ? ' · ' + c.etaLocation : ''}`],
+    ['Cửa sổ cam kết', c.window ? fmtDT(c.wStart) + ' → ' + fmtDT(c.wEnd) : 'Không có'],
+    ['Cập / rời kế hoạch', fmtDT(c.start) + ' → ' + fmtDT(c.end)],
+    ['Thời gian chiếm cầu', c.dur.toFixed(2) + ' giờ'],
+    ['Vị trí / chiều dài chiếm cầu', `${c.from}–${c.to} m / ${c.to - c.from} m`],
+    ['Mạn cập / hướng mũi', `${({ port: 'Mạn trái', starboard: 'Mạn phải' })[c.berthingSide] || 'Chưa có'} / ${({ increasing: 'Mét tăng', decreasing: 'Mét giảm' })[c.bowDirection] || 'Chưa có'}`],
+    ['LOA / DWT', `${c.loa} m / ${c.dwt ?? 'Chưa có'}`],
+    ['Mớn nước đến / rời', `${c.draft > 0 ? c.draft + ' m' : 'Chưa có'} / ${c.departureDraft ? c.departureDraft + ' m' : 'Chưa có'}`],
+    ['Cẩu dự kiến', c.cranes ?? 'Chưa phân bổ'],
+    ['Loại hàng / mục đích', ({ container: 'Container', general: 'Hàng tổng hợp', bulk: 'Hàng rời', none: 'Không làm hàng' })[c.cargo?.type] || 'Container (dữ liệu cũ)'],
+    ['Sản lượng dự kiến', c.cargo?.type === 'none' ? 'Không làm hàng' : c.moves === null ? 'Chưa có' : `${c.moves} ${c.unit}`],
+    ['Bình quân theo giờ chiếm cầu', c.moves === null ? 'Chưa có' : `${(c.moves / c.dur).toFixed(1)} ${c.unit}/h`],
+    ['Bình quân mỗi cẩu theo kế hoạch', c.moves === null || !c.cranes ? 'Chưa có' : `${(c.moves / c.dur / c.cranes).toFixed(1)} ${c.unit}/cẩu/h`],
+    ['Đại lý', c.agent || 'Chưa có'], ['Ưu tiên', c.priority === 'high' ? 'Cao' : 'Bình thường'], ['Ghi chú', c.notes || '—'],
+    ['Đến cảng thực tế (ATA)', at(c.actual?.arrivalAt)], ['Cập cầu thực tế (ATB)', at(c.actual?.berthAt)],
+    ['Bắt đầu / kết thúc làm hàng thực tế', `${at(c.actual?.operationsStartAt)} / ${at(c.actual?.operationsEndAt)}`],
+    ['Rời cầu thực tế (ATD)', at(c.actual?.departureAt)]
+  ];
 	const conf = c.conflicts.length
 		? `<div class="conflictbox"><b>Xung đột vị trí cập.</b> Chồng lấn cả thời gian lẫn đoạn cầu bến (đã tính khoảng an toàn ${SAFETY_GAP} m) với: ${c.conflicts.map(id => esc(calls.find(k => k.id === id).vessel)).join(', ')}.</div>`
 		: '';
@@ -414,15 +439,16 @@ function draw() {
 	$('#berth2dPlay').disabled = QUAY_LEN <= 0;
 	updateResponsiveScale();
 	const calls = enrich();
+	const activeCalls = calls.filter(call => !BerthCalls.cancelled(call));
 	// Tạo lại danh sách tuyến từ dữ liệu mới nhưng giữ lựa chọn hiện tại nếu còn hợp lệ.
 	const svcs = [...new Set(data.calls.map(c => c.service).filter(Boolean))].sort();
 	const cur = $('#filterSvc').value;
 	$('#filterSvc').innerHTML = '<option value="">Tất cả</option>' + svcs.map(s => `<option${s === cur ? ' selected' : ''}>${esc(s)}</option>`).join('');
 	renderWeekRange();
 	renderAxis();
-	renderChart(calls);
-	renderBerth2d(calls);
-	renderKpis(metrics(calls));
+	renderChart(activeCalls);
+	renderBerth2d(activeCalls);
+	renderKpis(metrics(activeCalls));
 	renderTable(calls);
 	renderDetail(calls);
 }
@@ -495,27 +521,15 @@ async function apiFetch(url, options = {}) {
 	if (mutation && (dataSaving || dataLoading)) throw new Error('Đang tải hoặc lưu dữ liệu, vui lòng chờ.');
 	if (mutation) {
 		dataSaving = true;
-		$('#inputControls').inert = true;
 		$('#callForm').inert = true;
 		$('#callListPanel').inert = true;
 		document.querySelector('.admin-weeknav').inert = true;
 	}
 	try {
-		const response = await fetch(url, {
-			...options,
-			headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
-		});
-		if (response.status === 401) {
-			window.location.assign('/login');
-			throw new Error('Phiên đăng nhập đã hết hạn.');
-		}
-		const payload = await response.json();
-		if (!response.ok) throw new Error(payload.message || 'Không thể xử lý yêu cầu.');
-		return payload;
+		return await BerthApi.request(url, options);
 	} finally {
 		if (mutation) {
 			dataSaving = false;
-			$('#inputControls').inert = !data;
 			$('#callForm').inert = false;
 			$('#callListPanel').inert = false;
 			document.querySelector('.admin-weeknav').inert = false;
@@ -530,7 +544,6 @@ async function loadData(nextRange = displayRange) {
 	stopBerth2dPlayback();
 	const navigationButtons = [$('#prevw'), $('#nextw'), $('#range'), $('#applyDateRange')];
 	navigationButtons.forEach(button => { button.disabled = true; });
-	$('#inputControls').inert = true;
 	$('#callListPanel').inert = true;
 	try {
 		const record = await apiFetch(rangeApiUrl(nextRange));
@@ -539,6 +552,10 @@ async function loadData(nextRange = displayRange) {
 		berth2dWeekMinute = today >= nextRange.start && today <= nextRange.end
 			? BerthDates.diff(nextRange.start, today) * MINUTES_PER_DAY + currentClock() : 0;
 		data = record.data;
+		dataVersions = record.versions;
+		dataWarnings = record.warnings || [];
+		windowSuggestions = record.windowSuggestions || [];
+		history.replaceState(null, '', `/admin/berth-window?start=${displayRange.start}&end=${displayRange.end}`);
 		selected = null;
 		renderInputs();
 		inputMessage(`Đang xem ${BerthDates.label(nextRange.start)} → ${BerthDates.label(nextRange.end)} (${nextRange.days} ngày).`);
@@ -551,108 +568,44 @@ async function loadData(nextRange = displayRange) {
 		return false;
 	} finally {
 		dataLoading = false;
-		$('#inputControls').inert = !data;
 		$('#callListPanel').inert = false;
 		navigationButtons.forEach(button => { button.disabled = false; });
 	}
 }
 
-// Form thao tác trên cùng snapshot đang được biểu đồ sử dụng.
-const field = (form, name) => form.elements.namedItem(name);
-const numberValue = (form, name) => Number(field(form, name).value);
-const optionalNumber = (form, name) => field(form, name).value === '' ? null : numberValue(form, name);
-// randomUUID cần secure context; getRandomValues vẫn hỗ trợ trang HTTP trong LAN.
-const newId = () => typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
-  : Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
 function inputMessage(message, error = false) {
-  for (const selector of ['#inputMsg', '#callListMsg', '#callFormMsg']) {
+  for (const selector of ['#callListMsg', '#callFormMsg']) {
     $(selector).textContent = message;
     $(selector).classList.toggle('err', error);
   }
 }
-function sectionRow(section = { code: '', from: 0, to: 0 }) {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `<td><input class="section-code" aria-label="Tên cầu ảo" required value="${esc(section.code)}"></td>
-    <td><input class="section-number section-from" aria-label="Vị trí bắt đầu" type="number" min="0" step="any" required value="${section.from}"></td>
-    <td><input class="section-number section-to" aria-label="Vị trí kết thúc" type="number" min="0" step="any" required value="${section.to}"></td>
-    <td class="section-length"></td><td><button type="button" class="btn">Xóa</button></td>`;
-  const update = () => { tr.querySelector('.section-length').textContent = Number(tr.querySelector('.section-to').value) - Number(tr.querySelector('.section-from').value); };
-  tr.addEventListener('input', update);
-  tr.querySelector('button').onclick = () => tr.remove();
-  update();
-  $('#sectionRows').append(tr);
-}
 function renderInputs() {
-  const q = BerthDomain.quay(data), form = $('#quayForm');
-  field(form, 'terminal').value = data.terminal;
-  for (const [name, value] of Object.entries(q)) {
-    const input = field(form, name);
-    if (input) input.value = name === 'length' && !q.length ? '' : (value ?? '');
-  }
-  $('#sectionRows').replaceChildren();
-  data.berths.forEach(sectionRow);
-  const vessels = data.vessels || [];
-  $('#vesselRows').innerHTML = vessels.map(v => `<tr><td>${esc(v.name)}</td><td>${esc(v.imo || '—')}</td><td>${v.loa}</td><td>${v.dwt ?? 'Chưa cung cấp'}</td><td>${BerthDomain.warnings(v, q).map(esc).join('<br>') || '—'}</td><td><button class="btn" type="button" data-vessel="${esc(v.id)}">Sửa</button></td></tr>`).join('') || '<tr><td colspan="6">Chưa có tàu trong danh mục.</td></tr>';
-  document.querySelectorAll('[data-vessel]').forEach(button => { button.onclick = () => {
-    const vessel = vessels.find(v => v.id === button.dataset.vessel);
-    for (const name of ['id', 'name', 'imo', 'loa', 'dwt']) field($('#vesselForm'), name).value = vessel[name] ?? '';
-  }; });
-  const callForm = $('#callForm');
-  field(callForm, 'vesselId').innerHTML = '<option value="">Chọn tàu</option>' + vessels.map(v => `<option value="${esc(v.id)}">${esc(v.name)} · ${v.loa} m</option>`).join('')
-    + data.calls.filter(c => !c.vesselId).map(c => `<option value="snapshot:${esc(c.id)}">${esc(c.vessel)} · ${c.loa} m (lượt ${esc(c.id)})</option>`).join('');
-  field(callForm, 'section').innerHTML = '<option value="">Chọn đoạn gợi ý</option>' + data.berths.map((b, i) => `<option value="${i}">${esc(b.code)} (${b.from}–${b.to} m)</option>`).join('');
-  $('#inputControls').inert = false;
+  const q = BerthDomain.quay(data);
+  $('#settingsLink').textContent = q.length > 0 ? 'Cấu hình và nhập dữ liệu' : 'Thiết lập cầu bến';
+  callFormUI.renderOptions();
   $('#addCall').disabled = q.length <= 0;
-  updateCallPreview();
 }
 async function saveCandidate(candidate) {
   try {
-    const record = await apiFetch(rangeApiUrl(displayRange), { method: 'PUT', body: JSON.stringify(candidate) });
+    const record = await apiFetch(rangeApiUrl(displayRange), { method: 'PUT', body: JSON.stringify({ ...candidate, versions: dataVersions }) });
     data = record.data;
+    dataVersions = record.versions;
+    dataWarnings = record.warnings || [];
+    windowSuggestions = record.windowSuggestions || [];
     selected = null;
     renderInputs();
     draw();
-    inputMessage(record.message);
+    inputMessage([record.message, ...dataWarnings.map(w => w.message)].join(' · '));
     return true;
   } catch (error) { inputMessage(error.message, true); return false; }
 }
-$('#addSection').onclick = () => sectionRow({ code: '', from: data.berths.at(-1)?.to || 0, to: BerthDomain.quay(data).length });
-$('#quayForm').onsubmit = async event => {
-  event.preventDefault();
-  const form = event.currentTarget, candidate = structuredClone(data);
-  candidate.terminal = field(form, 'terminal').value.trim();
-  candidate.quay = { ...BerthDomain.quay(data) };
-  for (const name of ['length', 'physicalBerthCount', 'safetyGap']) candidate.quay[name] = numberValue(form, name);
-  for (const name of ['depth', 'turningBasin', 'maxLoa', 'maxDwt']) candidate.quay[name] = optionalNumber(form, name);
-  for (const name of ['depthDatum', 'turningBasinMeasurement', 'capacitySource']) candidate.quay[name] = field(form, name).value.trim();
-  candidate.berths = [...document.querySelectorAll('#sectionRows tr')].map(tr => ({
-    code: tr.querySelector('.section-code').value.trim(),
-    from: Number(tr.querySelector('.section-from').value), to: Number(tr.querySelector('.section-to').value)
-  }));
-  await saveCandidate(candidate);
-};
-$('#clearVessel').onclick = () => $('#vesselForm').reset();
-$('#vesselForm').onsubmit = async event => {
-  event.preventDefault();
-  const form = event.currentTarget, candidate = structuredClone(data);
-  candidate.vessels ||= [];
-  const vessel = { id: field(form, 'id').value || newId(), name: field(form, 'name').value.trim(),
-    imo: field(form, 'imo').value.trim(), loa: numberValue(form, 'loa'), dwt: optionalNumber(form, 'dwt') };
-  const index = candidate.vessels.findIndex(v => v.id === vessel.id);
-  if (index < 0) candidate.vessels.push(vessel); else candidate.vessels[index] = vessel;
-  if (await saveCandidate(candidate)) {
-    form.reset();
-    const warnings = BerthDomain.warnings(vessel, BerthDomain.quay(data));
-    inputMessage(warnings.length ? `Đã lưu tàu. ${warnings.join(' ')}` : 'Đã lưu tàu.');
-  }
-};
 function bindCallActions() {
   document.querySelectorAll('[data-view-call]').forEach(button => { button.onclick = () => {
     selected = button.dataset.viewCall;
     draw();
     $('#detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }; });
-  document.querySelectorAll('[data-edit-call]').forEach(button => { button.onclick = () => editCall(button.dataset.editCall); });
+  document.querySelectorAll('[data-edit-call]').forEach(button => { button.onclick = () => callFormUI.edit(button.dataset.editCall); });
   document.querySelectorAll('[data-delete-call]').forEach(button => { button.onclick = () => deleteCall(button.dataset.deleteCall); });
 }
 async function deleteCall(id) {
@@ -663,111 +616,17 @@ async function deleteCall(id) {
   candidate.calls = candidate.calls.filter(c => c.id !== id);
   if (await saveCandidate(candidate)) inputMessage(`Đã xóa lượt tàu ${call.vessel}.`);
 }
-function callSelection() {
-  const form = $('#callForm');
-  const existing = data.calls.find(c => c.id === field(form, 'id').value);
-  const choice = field(form, 'vesselId').value;
-  const vessel = (data.vessels || []).find(v => v.id === choice);
-  const source = data.calls.find(c => !c.vesselId && choice === `snapshot:${c.id}`);
-  const sameVessel = existing && (choice === existing.vesselId || choice === `snapshot:${existing.id}`);
-  return { existing, vessel, dimensions: sameVessel ? existing : (vessel || source), sameVessel };
-}
-function occupiedLength(selection) {
-  // Lượt đã lưu có thể dành thêm khoảng cầu ngoài LOA; giữ nguyên khi sửa lịch.
-  return selection.sameVessel ? selection.existing.to - selection.existing.from : selection.dimensions.loa;
-}
-function updateCallPreview() {
-  if (!data) return;
-  const form = $('#callForm'), selection = callSelection(), dimensions = selection.dimensions;
-  if (!dimensions) { $('#callEnd').textContent = '—'; $('#callPreview').textContent = ''; return; }
-  const end = numberValue(form, 'from') + occupiedLength(selection);
-  $('#callEnd').textContent = `${Math.round(end * 1000) / 1000} m`;
-  const warnings = BerthDomain.warnings(dimensions, BerthDomain.quay(data));
-  if (selection.sameVessel && !selection.existing.vesselId) warnings.unshift('Đang giữ thông số tàu của lượt đã lưu. Có thể chọn tàu từ danh mục để thay thế.');
-  if (end > BerthDomain.quay(data).length) warnings.push('Vị trí kết thúc vượt chiều dài tuyến cầu.');
-  $('#callPreview').textContent = warnings.join(' ');
-  $('#callPreview').className = warnings.length ? 'err' : '';
-}
-function showCallDialog(title) {
-  $('#callDialogTitle').textContent = title;
-  $('#callFormMsg').textContent = '';
-  $('#callFormMsg').classList.remove('err');
-  updateCallPreview();
-  if (!$('#callDialog').open) $('#callDialog').showModal();
-}
-$('#addCall').onclick = () => {
-  if (!data || dataSaving || dataLoading) return;
-  $('#callForm').reset();
-  const dateInput = field($('#callForm'), 'date');
-  dateInput.min = displayRange.start;
-  dateInput.max = displayRange.end;
-  dateInput.value = displayRange.start;
-  showCallDialog('Thêm lượt tàu');
-  if (field($('#callForm'), 'vesselId').options.length === 1) {
-    $('#callFormMsg').textContent = 'Chưa có tàu trong danh mục. Hãy đóng form và thêm tàu tại mục Danh mục tàu trước.';
-  }
-};
-$('#closeCall').onclick = () => { if (!dataSaving) $('#callDialog').close(); };
-$('#callDialog').addEventListener('cancel', event => { if (dataSaving) event.preventDefault(); });
-$('#callForm').addEventListener('input', updateCallPreview);
-field($('#callForm'), 'section').onchange = event => {
-  if (event.target.value !== '') field($('#callForm'), 'from').value = data.berths[Number(event.target.value)].from;
-  updateCallPreview();
-};
-function callTimeValue(hour) {
-  const minutes = Math.min(1439, Math.round(hour * 60));
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-}
-function editCall(id) {
-  if (!data || dataSaving) return;
-  const c = data.calls.find(c => c.id === id), form = $('#callForm');
-  if (!c) return;
-  form.reset();
-  const choices = field(form, 'vesselId');
-  for (const name of ['id', 'voyage', 'service', 'line', 'dur', 'from', 'draft', 'cranes', 'moves']) field(form, name).value = c[name] ?? '';
-  choices.value = c.vesselId || `snapshot:${c.id}`;
-  const dateInput = field(form, 'date');
-  dateInput.value = dateOf(c.ata.day);
-  dateInput.min = dateInput.value < displayRange.start ? dateInput.value : displayRange.start;
-  dateInput.max = displayRange.end;
-  field(form, 'hour').value = callTimeValue(c.ata.hour);
-  showCallDialog(`Sửa lượt tàu · ${c.vessel}`);
-}
-$('#callForm').onsubmit = async event => {
-  event.preventDefault();
-  if (dataSaving) return;
-  const form = event.currentTarget, candidate = structuredClone(data);
-  const selection = callSelection(), { existing, vessel, dimensions, sameVessel } = selection;
-  if (!dimensions) { inputMessage('Hãy chọn tàu trong danh mục.', true); return; }
-  const id = existing?.id || newId();
-  const [hours, minutes] = field(form, 'hour').value.split(':').map(Number);
-  const hour = existing && field(form, 'hour').value === callTimeValue(existing.ata.hour) ? existing.ata.hour : hours + minutes / 60;
-  const from = numberValue(form, 'from');
-  const call = { ...(existing || {}), id,
-    vessel: sameVessel ? existing.vessel : (vessel?.name || dimensions.vessel),
-    loa: dimensions.loa, dwt: dimensions.dwt ?? null, imo: dimensions.imo || '',
-    voyage: field(form, 'voyage').value.trim(), service: field(form, 'service').value.trim() || null,
-    line: field(form, 'line').value.trim(), window: existing?.window || null, tol: existing?.tol || 0,
-    ata: { day: BerthDates.diff(displayRange.start, field(form, 'date').value), hour }, dur: numberValue(form, 'dur'),
-    from, to: Math.round((from + occupiedLength(selection)) * 1000000) / 1000000,
-    draft: numberValue(form, 'draft'), cranes: numberValue(form, 'cranes'), moves: numberValue(form, 'moves') };
-  if (!sameVessel) {
-    if (vessel) call.vesselId = vessel.id;
-    else delete call.vesselId;
-  }
-  const index = candidate.calls.findIndex(c => c.id === id);
-  if (index < 0) candidate.calls.push(call); else candidate.calls[index] = call;
-  if (await saveCandidate(candidate)) {
-    form.reset();
-    $('#callDialog').close();
-    // Lượt vừa lưu cần nhìn thấy kể cả khi bộ lọc trước đó đang chọn tuyến khác.
+const callFormUI = BerthCallForm({
+  getData: () => data, getRange: () => displayRange, getWindowSuggestions: () => windowSuggestions, busy: () => dataSaving || dataLoading,
+  save: saveCandidate,
+  onSaved(id, plannedStartAt, edited) {
     $('#filterSvc').value = '';
-    const storedId = existing ? id.slice(11) : id;
-    selected = data.calls.find(c => c.id === `${BerthDates.monday(dateOf(call.ata.day))}:${storedId}`)?.id || null;
+    const storedId = edited ? id.slice(11) : id;
+    selected = `${BerthDates.monday(BerthCalls.local(plannedStartAt).slice(0, 10))}:${storedId}`;
     draw();
-    inputMessage(existing ? `Đã cập nhật lượt tàu ${call.vessel}.` : `Đã thêm lượt tàu ${call.vessel}.`);
   }
-};
+});
+$('#addCall').onclick = () => callFormUI.open();
 
 // Lịch chọn khoảng ngày. Draft chỉ áp dụng sau khi người dùng bấm Áp dụng và tải thành công.
 let calendarStart = displayRange.start;

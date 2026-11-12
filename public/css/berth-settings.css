@@ -1,0 +1,15 @@
+.berth-settings .input-panel { margin-top: 16px; }
+.berth-settings .input-panel .panel-head { flex-wrap: wrap; gap: 8px; }
+.berth-settings #inputMsg { flex: 1 1 260px; }
+.berth-settings .data-form { padding-top: 16px; }
+.berth-settings .tablewrap { max-width: 100%; overflow-x: auto; }
+.berth-settings td .btn { margin: 3px 0; white-space: nowrap; }
+.berth-settings .section-code { min-width: 100px; }
+.berth-settings .section-from, .berth-settings .section-to { min-width: 85px; }
+.berth-settings .tool-context { flex-wrap: wrap; }
+.berth-settings [hidden] { display: none !important; }
+@media (max-width: 720px) {
+  .berth-settings .view-tabs { flex-wrap: wrap; }
+  .berth-settings .panel-head { align-items: flex-start; }
+  .berth-settings .tool-breadcrumb { flex-wrap: wrap; }
+}
