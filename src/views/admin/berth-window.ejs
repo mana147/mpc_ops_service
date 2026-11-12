@@ -92,8 +92,7 @@
 
     <div class="panel kpis" id="kpis"></div>
 
-    <div class="split content-split">
-      <div class="panel" id="callListPanel">
+    <div class="panel content-split" id="callListPanel">
         <div class="panel-head"><h2>Danh sách lượt tàu</h2><button type="button" class="btn btn-primary" id="addCall" disabled>Thêm lượt tàu</button></div>
         <p id="callListMsg" class="note" role="status" aria-live="polite"></p>
         <div class="tablewrap"><table id="callTable">
@@ -102,9 +101,7 @@
           </tr></thead>
           <tbody></tbody>
         </table></div>
-        <div class="note">Bấm vào một dòng để xem chi tiết và làm nổi bật trên biểu đồ.</div>
-      </div>
-      <div class="panel detail" id="detail"><div class="empty">Chưa chọn lượt tàu nào.</div></div>
+        <div class="note">Bấm vào một dòng hoặc nút <strong>Xem</strong> để mở cửa sổ chi tiết và làm nổi bật lượt tàu trên biểu đồ.</div>
     </div>
 
         </div>
@@ -113,6 +110,7 @@
   </div>
 
   <%- include('../partials/berth-call-dialog') %>
+  <%- include('../partials/berth-detail-dialog') %>
   <%- include('../partials/berth-date-range') %>
 
   <script src="/js/berth-dates.js" defer></script>

@@ -32,8 +32,10 @@ try {
   if (params.has('start') || params.has('end')) displayRange = BerthDates.range(params.get('start'), params.get('end'));
 } catch (_) { /* Khoảng không hợp lệ: mở hôm nay. */ }
 let dataLoading = false;
-// ID lượt tàu đang chọn trên biểu đồ, bảng và khung chi tiết.
+// ID lượt tàu đang chọn trên biểu đồ, bảng và cửa sổ chi tiết.
 let selected = null;
+// ID dùng để trả focus về nút Xem sau khi đóng cửa sổ chi tiết.
+let detailFocusId = null;
 // Thời điểm đang xem trên sơ đồ cầu bến 2D, độc lập với dữ liệu kế hoạch.
 const MINUTES_PER_DAY = 24 * 60;
 const BERTH_2D_TRANSITION_HOURS = 1;
@@ -389,43 +391,67 @@ function renderTable(calls) {
   bindCallActions();
 }
 
-/** Hiển thị chi tiết tàu đang chọn và tên các tàu xung đột. */
+/** Hiển thị chi tiết tàu đang chọn theo các nhóm nghiệp vụ trong popup. */
 function renderDetail(calls) {
 	const c = calls.find(x => x.id === selected);
-	if (!c) { $('#detail').innerHTML = '<div class="empty">Chưa chọn lượt tàu nào.</div>'; return; }
-  const at = time => time == null ? 'Chưa có' : `${BerthDates.label(BerthCalls.local(time).slice(0, 10))} ${BerthCalls.local(time).slice(11)}`;
-  const rows = [
-    ['Mã lượt', c.callReference || c.id],
-    ['Tình trạng', BerthCalls.labels[BerthCalls.phase(c)]],
-    ['Tuyến / hãng tàu', [c.service, c.line].filter(Boolean).join(' · ') || 'Chưa có'],
-    ['Chuyến vào / ra', `${c.voyageIn || c.voyage || '—'} / ${c.voyageOut || '—'}`],
-    ['ETA / địa điểm', `${at(c.etaAt)}${c.etaLocation ? ' · ' + c.etaLocation : ''}`],
-    ['Cửa sổ cam kết', c.window ? fmtDT(c.wStart) + ' → ' + fmtDT(c.wEnd) : 'Không có'],
-    ['Cập / rời kế hoạch', fmtDT(c.start) + ' → ' + fmtDT(c.end)],
-    ['Thời gian chiếm cầu', c.dur.toFixed(2) + ' giờ'],
-    ['Vị trí / chiều dài chiếm cầu', `${c.from}–${c.to} m / ${c.to - c.from} m`],
-    ['Mạn cập / hướng mũi', `${({ port: 'Mạn trái', starboard: 'Mạn phải' })[c.berthingSide] || 'Chưa có'} / ${({ increasing: 'Mét tăng', decreasing: 'Mét giảm' })[c.bowDirection] || 'Chưa có'}`],
-    ['LOA / DWT', `${c.loa} m / ${c.dwt ?? 'Chưa có'}`],
-    ['Mớn nước đến / rời', `${c.draft > 0 ? c.draft + ' m' : 'Chưa có'} / ${c.departureDraft ? c.departureDraft + ' m' : 'Chưa có'}`],
-    ['Cẩu dự kiến', c.cranes ?? 'Chưa phân bổ'],
-    ['Loại hàng / mục đích', ({ container: 'Container', general: 'Hàng tổng hợp', bulk: 'Hàng rời', none: 'Không làm hàng' })[c.cargo?.type] || 'Container (dữ liệu cũ)'],
-    ['Sản lượng dự kiến', c.cargo?.type === 'none' ? 'Không làm hàng' : c.moves === null ? 'Chưa có' : `${c.moves} ${c.unit}`],
-    ['Bình quân theo giờ chiếm cầu', c.moves === null ? 'Chưa có' : `${(c.moves / c.dur).toFixed(1)} ${c.unit}/h`],
-    ['Bình quân mỗi cẩu theo kế hoạch', c.moves === null || !c.cranes ? 'Chưa có' : `${(c.moves / c.dur / c.cranes).toFixed(1)} ${c.unit}/cẩu/h`],
-    ['Đại lý', c.agent || 'Chưa có'], ['Ưu tiên', c.priority === 'high' ? 'Cao' : 'Bình thường'], ['Ghi chú', c.notes || '—'],
-    ['Đến cảng thực tế (ATA)', at(c.actual?.arrivalAt)], ['Cập cầu thực tế (ATB)', at(c.actual?.berthAt)],
-    ['Bắt đầu / kết thúc làm hàng thực tế', `${at(c.actual?.operationsStartAt)} / ${at(c.actual?.operationsEndAt)}`],
-    ['Rời cầu thực tế (ATD)', at(c.actual?.departureAt)]
-  ];
+	if (!c) {
+		$('#detailDialogTitle').textContent = 'Chi tiết lượt tàu';
+		$('#detail').innerHTML = '<div class="empty">Chưa chọn lượt tàu nào.</div>';
+		return;
+	}
+	const at = time => time == null ? 'Chưa có' : `${BerthDates.label(BerthCalls.local(time).slice(0, 10))} ${BerthCalls.local(time).slice(11)}`;
+	const group = (title, rows, wide = false) => `<section class="detail-group${wide ? ' detail-group-wide' : ''}"><h3>${title}</h3><dl>${rows.map(([label, value]) => `<dt>${label}</dt><dd>${esc(value)}</dd>`).join('')}</dl></section>`;
+	const groups = [
+		group('Tổng quan', [
+			['Mã lượt', c.callReference || c.id],
+			['Tình trạng', BerthCalls.labels[BerthCalls.phase(c)]],
+			['Tuyến / hãng tàu', [c.service, c.line].filter(Boolean).join(' · ') || 'Chưa có'],
+			['Chuyến vào / ra', `${c.voyageIn || c.voyage || '—'} / ${c.voyageOut || '—'}`],
+			['Đại lý', c.agent || 'Chưa có'],
+			['Ưu tiên', c.priority === 'high' ? 'Cao' : 'Bình thường']
+		]),
+		group('Kế hoạch và cầu bến', [
+			['ETA / địa điểm', `${at(c.etaAt)}${c.etaLocation ? ' · ' + c.etaLocation : ''}`],
+			['Cửa sổ cam kết', c.window ? fmtDT(c.wStart) + ' → ' + fmtDT(c.wEnd) : 'Không có'],
+			['Cập / rời kế hoạch', fmtDT(c.start) + ' → ' + fmtDT(c.end)],
+			['Thời gian chiếm cầu', c.dur.toFixed(2) + ' giờ'],
+			['Vị trí / chiều dài', `${c.from}–${c.to} m / ${c.to - c.from} m`],
+			['Mạn cập / hướng mũi', `${({ port: 'Mạn trái', starboard: 'Mạn phải' })[c.berthingSide] || 'Chưa có'} / ${({ increasing: 'Mét tăng', decreasing: 'Mét giảm' })[c.bowDirection] || 'Chưa có'}`],
+			['LOA / DWT', `${c.loa} m / ${c.dwt ?? 'Chưa có'}`],
+			['Mớn nước đến / rời', `${c.draft > 0 ? c.draft + ' m' : 'Chưa có'} / ${c.departureDraft ? c.departureDraft + ' m' : 'Chưa có'}`]
+		]),
+		group('Khai thác dự kiến', [
+			['Cẩu dự kiến', c.cranes ?? 'Chưa phân bổ'],
+			['Loại hàng / mục đích', ({ container: 'Container', general: 'Hàng tổng hợp', bulk: 'Hàng rời', none: 'Không làm hàng' })[c.cargo?.type] || 'Container (dữ liệu cũ)'],
+			['Sản lượng dự kiến', c.cargo?.type === 'none' ? 'Không làm hàng' : c.moves === null ? 'Chưa có' : `${c.moves} ${c.unit}`],
+			['Bình quân theo giờ', c.moves === null ? 'Chưa có' : `${(c.moves / c.dur).toFixed(1)} ${c.unit}/h`],
+			['Bình quân mỗi cẩu', c.moves === null || !c.cranes ? 'Chưa có' : `${(c.moves / c.dur / c.cranes).toFixed(1)} ${c.unit}/cẩu/h`]
+		]),
+		group('Thời gian thực tế', [
+			['Đến cảng (ATA)', at(c.actual?.arrivalAt)],
+			['Cập cầu (ATB)', at(c.actual?.berthAt)],
+			['Bắt đầu làm hàng', at(c.actual?.operationsStartAt)],
+			['Kết thúc làm hàng', at(c.actual?.operationsEndAt)],
+			['Rời cầu (ATD)', at(c.actual?.departureAt)]
+		]),
+		group('Ghi chú điều độ', [['Nội dung', c.notes || 'Không có ghi chú.']], true)
+	];
 	const conf = c.conflicts.length
-		? `<div class="conflictbox"><b>Xung đột vị trí cập.</b> Chồng lấn cả thời gian lẫn đoạn cầu bến (đã tính khoảng an toàn ${SAFETY_GAP} m) với: ${c.conflicts.map(id => esc(calls.find(k => k.id === id).vessel)).join(', ')}.</div>`
+		? `<div class="conflictbox"><b>Xung đột vị trí cập.</b> Chồng lấn cả thời gian lẫn đoạn cầu bến (đã tính khoảng an toàn ${SAFETY_GAP} m) với: ${c.conflicts.map(id => esc(calls.find(k => k.id === id)?.vessel || id)).join(', ')}.</div>`
 		: '';
-	$('#detail').innerHTML = `<h3>${esc(c.vessel)}</h3><div class="vsl">${esc(c.id)} · ${c.window ? 'lượt theo cửa sổ' : 'lượt vãng lai'}</div>
-    <dl>${rows.map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl>${conf}${c.warnings.length ? `<div class="conflictbox">${c.warnings.map(esc).join("<br>")}<br>Cần kiểm tra điều kiện tiếp nhận.</div>` : ""}`;
+	$('#detailDialogTitle').textContent = c.vessel;
+	$('#detail').innerHTML = `<div class="detail-summary"><div><div class="vsl">${esc(c.callReference || c.id)} · ${c.window ? 'Lượt theo cửa sổ' : 'Lượt vãng lai'}</div><p>${esc(c.voyageIn || c.voyage || 'Chưa có chuyến vào')}${c.voyageOut ? ` → ${esc(c.voyageOut)}` : ''}</p></div><span class="pill ${c.conflicts.length ? 'p-bad' : c.status === 'ok' ? 'p-ok' : c.status === 'adhoc' ? 'p-adhoc' : 'p-late'}">${c.conflicts.length ? 'Có xung đột' : STATUS[c.status][1]}</span></div>
+	    <div class="detail-groups">${groups.join('')}</div>${conf}${c.warnings.length ? `<div class="conflictbox">${c.warnings.map(esc).join("<br>")}<br>Cần kiểm tra điều kiện tiếp nhận.</div>` : ""}`;
 }
 
-/** Chọn hoặc bỏ chọn một lượt tàu rồi vẽ lại giao diện. */
-function select(id) { selected = selected === id ? null : id; draw(); }
+/** Chọn một lượt tàu, làm nổi bật trên các biểu đồ và mở popup chi tiết. */
+function select(id) {
+	selected = id;
+	detailFocusId = id;
+	draw();
+	const dialog = $('#detailDialog');
+	if (!dialog.open) dialog.showModal();
+}
 
 /** Tính dữ liệu và cập nhật mọi vùng hiển thị sau mỗi thay đổi. */
 function draw() {
@@ -600,11 +626,7 @@ async function saveCandidate(candidate) {
   } catch (error) { inputMessage(error.message, true); return false; }
 }
 function bindCallActions() {
-  document.querySelectorAll('[data-view-call]').forEach(button => { button.onclick = () => {
-    selected = button.dataset.viewCall;
-    draw();
-    $('#detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }; });
+  document.querySelectorAll('[data-view-call]').forEach(button => { button.onclick = () => select(button.dataset.viewCall); });
   document.querySelectorAll('[data-edit-call]').forEach(button => { button.onclick = () => callFormUI.edit(button.dataset.editCall); });
   document.querySelectorAll('[data-delete-call]').forEach(button => { button.onclick = () => deleteCall(button.dataset.deleteCall); });
 }
@@ -627,6 +649,27 @@ const callFormUI = BerthCallForm({
   }
 });
 $('#addCall').onclick = () => callFormUI.open();
+
+/** Đóng popup, bỏ highlight và trả focus về nút Xem tương ứng nếu còn hiển thị. */
+function closeDetail() {
+	if ($('#detailDialog').open) $('#detailDialog').close();
+}
+$('#closeDetail').onclick = closeDetail;
+$('#closeDetailFooter').onclick = closeDetail;
+$('#detailDialog').addEventListener('cancel', event => { event.preventDefault(); closeDetail(); });
+$('#detailDialog').addEventListener('click', event => {
+	const dialog = event.currentTarget;
+	const box = dialog.getBoundingClientRect();
+	if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) closeDetail();
+});
+$('#detailDialog').addEventListener('close', () => {
+	const focusId = detailFocusId;
+	selected = null;
+	detailFocusId = null;
+	draw();
+	const trigger = [...document.querySelectorAll('[data-view-call]')].find(button => button.dataset.viewCall === focusId);
+	trigger?.focus();
+});
 
 // Lịch chọn khoảng ngày. Draft chỉ áp dụng sau khi người dùng bấm Áp dụng và tải thành công.
 let calendarStart = displayRange.start;

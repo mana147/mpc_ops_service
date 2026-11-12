@@ -315,7 +315,7 @@ JavaScript tự đổi tỷ lệ SVG:
 - Mobile dọc: `HOUR_PX = 8`, `M_PX = 0.36`.
 - Mobile ngang thấp hơn `560 px`: `HOUR_PX = 7`, `M_PX = 0.28`.
 
-CSS landscape đưa 5 KPI lên một hàng và bố trí danh sách/chi tiết thành hai cột. Sơ đồ 2D giữ tỷ lệ mét và cuộn ngang trên màn hình hẹp. Khi sửa SVG, phải kiểm tra ít nhất desktop, mobile dọc và mobile ngang.
+CSS landscape đưa 5 KPI lên một hàng. Danh sách lượt tàu dùng toàn bộ chiều rộng; thông tin chi tiết mở bằng popup responsive từ bảng, biểu đồ hoặc sơ đồ 2D. Sơ đồ 2D giữ tỷ lệ mét và cuộn ngang trên màn hình hẹp. Khi sửa SVG hoặc popup chi tiết, phải kiểm tra ít nhất desktop, mobile dọc và mobile ngang.
 
 ## 10. Cài đặt và vận hành
 
@@ -475,7 +475,7 @@ Mở menu **Công cụ → Cấu hình Berth Window** (hoặc liên kết trên 
 
 1. **Tuyến cầu và các đoạn cầu ảo:** nhập tên tuyến, chiều dài, số cầu thực tế, khoảng cách an toàn và các thông số cảng nếu có; thêm/sửa/xóa đoạn bằng tọa độ. Không cần dựng ranh giới giả cho các cầu thực tế. Cầu ảo có thể để trống nhưng không chồng nhau, không làm tăng chiều dài tuyến.
 2. **Danh mục tàu:** nhập tên và LOA; IMO (7 chữ số, duy nhất) và DWT có thể để trống. ID được tạo tự động. Sửa danh mục không sửa thông số các lượt đã lập. **Ngừng sử dụng / Dùng lại** thay đổi khả năng chọn tàu cho lượt mới, không xóa lịch cũ.
-3. **Danh sách lượt tàu:** bấm **Thêm lượt tàu** ngay trên bảng để mở form; từng dòng có **Xem / Sửa / Xóa**, xóa cần xác nhận. Form thêm/sửa nằm trong hộp thoại, đóng bằng Hủy hoặc Esc.
+3. **Danh sách lượt tàu:** bấm **Thêm lượt tàu** ngay trên bảng để mở form; từng dòng có **Xem / Sửa / Xóa**, xóa cần xác nhận. **Xem** hoặc chọn lượt trên bảng/biểu đồ/sơ đồ 2D mở popup chi tiết theo nhóm nghiệp vụ; đóng bằng nút Đóng, Esc hoặc bấm ra ngoài. Form thêm/sửa nằm trong hộp thoại, đóng bằng Hủy hoặc Esc.
 
    **Thêm / sửa lượt tàu:** form gồm 5 nhóm: thông tin lượt, kế hoạch thời gian, bố trí/cửa sổ, khai thác dự kiến và xác nhận/ghi chú. IMO/LOA/DWT/rộng lấy từ danh mục hoặc snapshot lượt đã lưu. Chọn cầu ảo chỉ gợi ý vị trí, có thể chỉnh chiều dài chiếm cầu đủ LOA. Có thể sửa legacy trực tiếp; khi lưu mới chuyển riêng lượt đó sang mẫu 2, giữ thông số tàu, chiều dài đoạn, cửa sổ/dung sai và thời điểm kế hoạch đến độ chính xác millisecond. Giờ thực tế không được suy diễn. Lỗi lưu giữ nguyên form; đóng hoặc Esc khi có thay đổi cần xác nhận.
 

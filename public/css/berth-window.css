@@ -432,25 +432,9 @@ text {
   color: var(--alarm)
 }
 
-.split {
-  display: grid;
-  grid-template-columns: minmax(0, 1.9fr) minmax(300px, 1fr);
-  gap: 16px;
-  align-items: start
-}
-
 .content-split {
-  margin-top: 16px
-}
-
-.content-split > .panel {
+  margin-top: 16px;
   min-width: 0
-}
-
-@media (max-width:1000px) {
-  .split {
-    grid-template-columns: 1fr
-  }
 }
 
 table {
@@ -527,50 +511,6 @@ td.num {
 .p-bad {
   background: var(--alarm-soft);
   color: var(--alarm)
-}
-
-.detail {
-  padding: 16px
-}
-
-.detail .empty {
-  color: var(--muted);
-  font-size: 13px
-}
-
-.detail h3 {
-  font-size: 15px;
-  margin-bottom: 2px
-}
-
-.detail .vsl {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--muted);
-  margin-bottom: 14px
-}
-
-dl {
-  display: grid;
-  grid-template-columns: minmax(110px, 120px) minmax(0, 1fr);
-  gap: 7px 12px;
-  margin: 0;
-  font-size: 13px;
-  align-items: start
-}
-
-dt {
-  color: var(--muted);
-  line-height: 1.5;
-  white-space: nowrap
-}
-
-dd {
-  margin: 0;
-  font-family: var(--mono);
-  line-height: 1.5;
-  word-break: break-word;
-  white-space: normal
 }
 
 .conflictbox {
@@ -705,15 +645,6 @@ dd {
     max-height: 340px
   }
 
-  .detail {
-    padding: 12px
-  }
-
-  dl {
-    grid-template-columns: minmax(96px, 110px) minmax(0, 1fr);
-    font-size: 12px
-  }
-
   .io {
     padding: 10px
   }
@@ -759,11 +690,6 @@ dd {
 
   .content-split {
     margin-top: 8px
-  }
-
-  .split {
-    grid-template-columns: minmax(0, 1.7fr) minmax(240px, 1fr);
-    gap: 8px
   }
 
   .tablewrap {
@@ -816,6 +742,42 @@ dd {
 .call-dialog #callFormMsg.err, .call-dialog #callPreview.err { padding: 8px; border-left: 3px solid var(--alarm); background: #fff3ef; }
 .kpi .v.is-empty { font-family: inherit; font-size: 16px; padding-top: 7px; }
 .call-subtitle { display: block; font-size: 11px; color: var(--muted); }
+
+/* Chi tiết lượt tàu hiển thị bằng popup để bảng kế hoạch dùng toàn bộ chiều rộng. */
+.detail-dialog { width: min(960px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 60px #16212b40; overflow: hidden; }
+.detail-dialog[open] { display: flex; flex-direction: column; }
+.detail-dialog::backdrop { background: #16212b70; }
+.detail-dialog-head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--rule2); background: var(--surface); }
+.detail-dialog-head p { margin: 0 0 2px; color: #596771; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; }
+.detail-dialog-head h2 { font-size: 18px; line-height: 1.35; }
+.detail-dialog-close { flex: 0 0 auto; min-height: 36px; padding: 6px 10px; }
+.detail-dialog-body { min-height: 0; padding: 18px; overflow: auto; overscroll-behavior: contain; }
+.detail-dialog-body .empty { color: var(--muted); font-size: 13px; }
+.detail-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; padding: 0 2px; }
+.detail-summary .vsl { margin-bottom: 3px; color: #596771; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.detail-summary p { margin: 0; color: var(--ink2); font-size: 13px; }
+.detail-summary .pill { flex: 0 0 auto; margin-top: 2px; }
+.detail-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.detail-group { min-width: 0; padding: 14px; border: 1px solid var(--rule2); border-radius: 4px; background: #FAFBF9; }
+.detail-group-wide { grid-column: 1 / -1; }
+.detail-group h3 { margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule2); color: var(--ink); font-size: 13px; }
+.detail-group dl { display: grid; grid-template-columns: minmax(120px, 145px) minmax(0, 1fr); gap: 7px 12px; margin: 0; align-items: start; font-size: 12.5px; }
+.detail-group dt { color: #596771; line-height: 1.5; }
+.detail-group dd { margin: 0; font-family: var(--mono); line-height: 1.5; overflow-wrap: anywhere; white-space: normal; }
+.detail-dialog-actions { flex: 0 0 auto; display: flex; justify-content: flex-end; padding: 10px 18px; border-top: 1px solid var(--rule2); background: var(--surface); }
+
+@media (max-width:720px) {
+  .detail-dialog { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .detail-dialog-head { padding: 11px 12px; }
+  .detail-dialog-head h2 { font-size: 16px; }
+  .detail-dialog-body { padding: 12px; }
+  .detail-summary { align-items: flex-start; }
+  .detail-groups { grid-template-columns: 1fr; gap: 10px; }
+  .detail-group-wide { grid-column: auto; }
+  .detail-group { padding: 12px; }
+  .detail-group dl { grid-template-columns: minmax(105px, 125px) minmax(0, 1fr); font-size: 12px; }
+  .detail-dialog-actions { padding: 8px 12px; }
+}
 
 /* Lịch chọn khoảng ngày dùng chung cho biểu đồ và sơ đồ 2D. */
 .date-range-dialog { width: min(430px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; overflow: auto; border: 1px solid var(--rule); border-radius: 8px; color: var(--ink); background: var(--surface); box-shadow: 0 18px 60px #16212b33; }

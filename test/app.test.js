@@ -67,6 +67,10 @@ test('admin đăng nhập, đọc và lưu berth window trong SQLite', async () 
   assert.match(berthWindowPage.text, /Sơ đồ cầu bến 2D/);
   assert.match(berthWindowPage.text, /id="berth2dRange"/);
   assert.match(berthWindowPage.text, /id="dateRangeDialog"/);
+  assert.match(berthWindowPage.text, /id="detailDialog"/);
+  assert.match(berthWindowPage.text, /id="detail"/);
+  assert.match(berthWindowPage.text, /aria-labelledby="detailDialogTitle"/);
+  assert.doesNotMatch(berthWindowPage.text, /class="panel detail"/);
   assert.match(berthWindowPage.text, /id="berth2dSvg"/);
   assert.doesNotMatch(berthWindowPage.text, /id="berth2dDay"/);
   assert.doesNotMatch(berthWindowPage.text, /id="berth2dClock"/);
